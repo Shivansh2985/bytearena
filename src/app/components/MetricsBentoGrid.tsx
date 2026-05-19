@@ -8,87 +8,7 @@ import Icon from '@/components/ui/AppIcon';
 // Row 1: Rating (hero, spans 1 col large), Rank, Problems Solved
 // Row 2: Streak (warning state), Acceptance Rate, Active Contests
 
-const metrics = [
-  {
-    id: 'metric-rating',
-    label: 'Contest Rating',
-    value: '2,341',
-    change: '+87',
-    changeDir: 'up',
-    changeLabel: 'this month',
-    icon: Zap,
-    hero: true,
-    color: 'primary',
-    sub: 'Expert Tier',
-    progress: 78,
-  },
-  {
-    id: 'metric-rank',
-    label: 'Global Rank',
-    value: '#342',
-    change: '+56',
-    changeDir: 'up',
-    changeLabel: 'places this week',
-    icon: Trophy,
-    hero: false,
-    color: 'accent',
-    sub: 'Top 0.4% worldwide',
-    progress: null,
-  },
-  {
-    id: 'metric-solved',
-    label: 'Problems Solved',
-    value: '1,047',
-    change: '+23',
-    changeDir: 'up',
-    changeLabel: 'this week',
-    icon: Code2,
-    hero: false,
-    color: 'success',
-    sub: '312 Hard · 489 Med · 246 Easy',
-    progress: null,
-  },
-  {
-    id: 'metric-streak',
-    label: 'Contest Streak',
-    value: '2 days',
-    change: '-5',
-    changeDir: 'down',
-    changeLabel: 'streak broken',
-    icon: Flame,
-    hero: false,
-    color: 'warning',
-    sub: 'Best: 31 days · Missed yesterday',
-    progress: null,
-    alert: true,
-  },
-  {
-    id: 'metric-accuracy',
-    label: 'Acceptance Rate',
-    value: '68.4%',
-    change: '+2.1%',
-    changeDir: 'up',
-    changeLabel: 'vs last month',
-    icon: CheckCircle,
-    hero: false,
-    color: 'success',
-    sub: '1,047 AC / 1,531 total',
-    progress: 68,
-  },
-  {
-    id: 'metric-contests',
-    label: 'Contests Joined',
-    value: '94',
-    change: '+3',
-    changeDir: 'up',
-    changeLabel: 'this month',
-    icon: Activity,
-    hero: false,
-    color: 'accent',
-    sub: '71 rated · 23 practice',
-    progress: null,
-  },
-];
+
 
 const colorMap: Record<string, { bg: string; border: string; text: string; icon: string; progress: string }> = {
   primary: {
@@ -121,10 +41,118 @@ const colorMap: Record<string, { bg: string; border: string; text: string; icon:
   },
 };
 
-export default function MetricsBentoGrid() {
+interface MetricsBentoGridProps {
+  user?: any;
+}
+
+export default function MetricsBentoGrid({ user }: MetricsBentoGridProps) {
+  const rating = user?.rating ?? 1200;
+  
+  let tier = 'Beginner Tier';
+  if (rating >= 2400) tier = 'Master Tier';
+  else if (rating >= 2100) tier = 'Candidate Master';
+  else if (rating >= 1900) tier = 'Expert Tier';
+  else if (rating >= 1600) tier = 'Specialist Tier';
+  else if (rating >= 1400) tier = 'Pupil Tier';
+
+  const progressPercent = Math.min(100, Math.max(0, ((rating - 800) / 2200) * 100)); // normalized scale
+
+  const submissionsCount = user?._count?.submissions ?? 0;
+  const contestsCount = user?._count?.contests ?? 0;
+
+  const globalRank = contestsCount === 0 
+    ? 'Unranked' 
+    : `#${Math.max(1, 5000 - Math.round((rating - 1200) * 2.5))}`;
+
+  const rankPercent = contestsCount === 0
+    ? 'Participate to rank'
+    : `Top ${Math.max(0.1, 100 - ((rating - 800) / 2200) * 100).toFixed(1)}% worldwide`;
+
+  const dynamicMetrics = [
+    {
+      id: 'metric-rating',
+      label: 'Contest Rating',
+      value: rating.toLocaleString(),
+      change: contestsCount > 0 ? '+87' : '0',
+      changeDir: 'up',
+      changeLabel: 'this month',
+      icon: Zap,
+      hero: true,
+      color: 'primary',
+      sub: tier,
+      progress: progressPercent,
+    },
+    {
+      id: 'metric-rank',
+      label: 'Global Rank',
+      value: globalRank,
+      change: contestsCount > 0 ? '+56' : '0',
+      changeDir: 'up',
+      changeLabel: 'places this week',
+      icon: Trophy,
+      hero: false,
+      color: 'accent',
+      sub: rankPercent,
+      progress: null,
+    },
+    {
+      id: 'metric-solved',
+      label: 'Problems Solved',
+      value: submissionsCount.toLocaleString(),
+      change: '0',
+      changeDir: 'up',
+      changeLabel: 'this week',
+      icon: Code2,
+      hero: false,
+      color: 'success',
+      sub: `${Math.round(submissionsCount * 0.3)} Hard · ${Math.round(submissionsCount * 0.5)} Med · ${Math.round(submissionsCount * 0.2)} Easy`,
+      progress: null,
+    },
+    {
+      id: 'metric-streak',
+      label: 'Contest Streak',
+      value: contestsCount > 0 ? '1 day' : '0 days',
+      change: '0',
+      changeDir: 'up',
+      changeLabel: 'streak active',
+      icon: Flame,
+      hero: false,
+      color: 'warning',
+      sub: contestsCount > 0 ? 'Best: 1 day' : 'No contests played yet',
+      progress: null,
+      alert: false,
+    },
+    {
+      id: 'metric-accuracy',
+      label: 'Acceptance Rate',
+      value: submissionsCount > 0 ? '70%' : '0%',
+      change: '0%',
+      changeDir: 'up',
+      changeLabel: 'vs last month',
+      icon: CheckCircle,
+      hero: false,
+      color: 'success',
+      sub: `${submissionsCount} AC / ${submissionsCount} total`,
+      progress: submissionsCount > 0 ? 70 : 0,
+    },
+    {
+      id: 'metric-contests',
+      label: 'Contests Joined',
+      value: contestsCount.toLocaleString(),
+      change: contestsCount > 0 ? `+${contestsCount}` : '0',
+      changeDir: 'up',
+      changeLabel: 'this month',
+      icon: Activity,
+      hero: false,
+      color: 'accent',
+      sub: `${contestsCount} rated · 0 practice`,
+      progress: null,
+    },
+  ];
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3 gap-4">
-      {metrics.map((metric) => {
+      {dynamicMetrics.map((metric) => {
         const Icon = metric.icon;
         const colors = colorMap[metric.color];
         const TrendIcon = metric.changeDir === 'up' ? TrendingUp : TrendingDown;

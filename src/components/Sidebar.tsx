@@ -32,14 +32,29 @@ interface SidebarProps {
   onMobileClose: () => void;
   currentPath: string;
   role?: 'student' | 'admin';
+  user?: any;
 }
 
-const userNavGroups = [
+import { LucideIcon } from 'lucide-react';
+
+interface NavItem {
+  icon: LucideIcon;
+  label: string;
+  href: string;
+  badge: string | null;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const userNavGroups: NavGroup[] = [
   {
     label: 'Main',
     items: [
       { icon: LayoutDashboard, label: 'Dashboard', href: '/user-dashboard', badge: null },
-      { icon: Swords, label: 'Contests', href: '/contests', badge: '2 Live' },
+      { icon: Swords, label: 'Contests', href: '/contests', badge: null },
       { icon: Trophy, label: 'Leaderboard', href: '/leaderboard', badge: null },
       { icon: Zap, label: 'Battleground', href: '/battleground', badge: null },
     ],
@@ -56,13 +71,13 @@ const userNavGroups = [
     label: 'Account',
     items: [
       { icon: User, label: 'Profile', href: '/profile', badge: null },
-      { icon: Bell, label: 'Notifications', href: '/user-dashboard', badge: '3' },
+      { icon: Bell, label: 'Notifications', href: '/user-dashboard', badge: null },
       { icon: Settings, label: 'Settings', href: '/settings', badge: null },
     ],
   },
 ];
 
-const adminNavGroups = [
+const adminNavGroups: NavGroup[] = [
   {
     label: 'Overview',
     items: [
@@ -82,7 +97,7 @@ const adminNavGroups = [
     label: 'Users',
     items: [
       { icon: Users, label: 'User Management', href: '/admin/users', badge: null },
-      { icon: Eye, label: 'Proctoring', href: '/admin/proctoring', badge: '2 Live' },
+      { icon: Eye, label: 'Proctoring', href: '/admin/proctoring', badge: null },
       { icon: Star, label: 'Ratings', href: '/admin/ratings', badge: null },
     ],
   },
@@ -101,7 +116,12 @@ export default function Sidebar({
   onMobileClose,
   currentPath,
   role = 'student',
+  user,
 }: SidebarProps) {
+  const displayName = user?.name || (user?.firstName ? `${user.firstName} ${user.lastName || ''}` : '') || 'User';
+  const displayRating = user?.rating ?? 1200;
+  const initials = displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'US';
+
   const navGroups = role === 'admin' ? adminNavGroups : userNavGroups;
   const isActive = (href: string) => currentPath === href;
 
@@ -131,7 +151,7 @@ export default function Sidebar({
                     {!collapsed && (
                       <span className="text-sm font-medium flex-1">{item.label}</span>
                     )}
-                    {!collapsed && item.badge && (
+                    {!collapsed && item.badge && typeof item.badge === 'string' && (
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                         item.badge.includes('Live')
                           ? 'bg-red-500/15 text-red-400 border border-red-500/25' :'bg-primary/15 text-sky-300 border border-primary/25'
@@ -150,45 +170,26 @@ export default function Sidebar({
         ))}
       </nav>
 
-      {/* Role switch link */}
-      <div className="px-2 pb-3 border-t border-border pt-3">
-        {role === 'student' ? (
-          <Link
-            href="/admin/dashboard"
-            className={`sidebar-item ${collapsed ? 'justify-center' : ''}`}
-            title={collapsed ? 'Admin Panel' : undefined}
-            onClick={onClose}
-          >
-            <Shield size={18} className="flex-shrink-0 text-amber-400" />
-            {!collapsed && <span className="text-sm font-medium text-amber-300">Admin Panel</span>}
-          </Link>
-        ) : (
-          <Link
-            href="/user-dashboard"
-            className={`sidebar-item ${collapsed ? 'justify-center' : ''}`}
-            title={collapsed ? 'Student View' : undefined}
-            onClick={onClose}
-          >
-            <User size={18} className="flex-shrink-0 text-sky-400" />
-            {!collapsed && <span className="text-sm font-medium text-sky-300">Student View</span>}
-          </Link>
-        )}
-      </div>
+
 
       {/* User avatar */}
       <div className={`flex items-center px-3 py-3 border-t border-border gap-3 ${collapsed ? 'justify-center' : ''}`}>
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${
-          role === 'admin' ?'bg-gradient-to-br from-amber-500 to-orange-600' :'bg-gradient-to-br from-sky-500 to-cyan-600'
-        }`}>
-          {role === 'admin' ? 'AD' : 'RK'}
-        </div>
+        {user?.imageUrl || user?.image ? (
+          <img src={user.imageUrl || user.image} alt={displayName} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+        ) : (
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${
+            role === 'admin' ? 'bg-gradient-to-br from-amber-500 to-orange-600' : 'bg-gradient-to-br from-sky-500 to-cyan-600'
+          }`}>
+            {role === 'admin' ? 'AD' : initials}
+          </div>
+        )}
         {!collapsed && (
           <div className="min-w-0">
             <p className="text-sm font-medium text-foreground truncate">
-              {role === 'admin' ? 'Admin User' : 'Rahul Kumar'}
+              {role === 'admin' ? 'Admin User' : displayName}
             </p>
             <p className="text-xs text-muted-foreground truncate">
-              {role === 'admin' ? 'Administrator' : 'Rating: 2,341'}
+              {role === 'admin' ? 'Administrator' : `Rating: ${displayRating.toLocaleString()}`}
             </p>
           </div>
         )}
@@ -204,31 +205,28 @@ export default function Sidebar({
           collapsed ? 'w-16' : 'w-60'
         }`}
       >
-        {/* Logo */}
-        <div className={`flex items-center h-16 px-4 border-b border-border flex-shrink-0 ${collapsed ? 'justify-center' : 'gap-3'}`}>
-          <div className="flex items-center gap-2">
+        {/* Logo and Collapse Toggle */}
+        <div className={`relative flex items-center h-16 px-4 border-b border-border flex-shrink-0 justify-between`}>
+          <div className={`flex items-center gap-2 ${collapsed ? 'hidden' : ''}`}>
             <AppLogo size={32} />
-            {!collapsed && (
-              <span className="font-bold text-base text-foreground tracking-tight">ByteArena</span>
-            )}
+            <span className="font-bold text-base text-foreground tracking-tight">ByteArena</span>
           </div>
-          {!collapsed && role === 'admin' && (
-            <span className="ml-auto text-xs px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/25 font-medium">
-              Admin
-            </span>
+          {collapsed && (
+            <div className="mx-auto flex items-center justify-center">
+              <AppLogo size={32} />
+            </div>
           )}
+          
+          <button
+            onClick={onToggle}
+            className={`absolute top-5 -right-3 z-50 flex items-center justify-center h-6 w-6 rounded-full border border-border bg-card shadow-sm text-muted-foreground hover:text-foreground transition-all duration-200`}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
         </div>
 
         <NavContent />
-
-        {/* Collapse toggle */}
-        <button
-          onClick={onToggle}
-          className="flex items-center justify-center h-10 border-t border-border text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-        </button>
       </aside>
 
       {/* Mobile Sidebar */}

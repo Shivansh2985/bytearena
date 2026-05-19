@@ -4,31 +4,88 @@ import AppLayout from '@/components/AppLayout';
 import { Save, ArrowLeft, Trash2, Plus } from 'lucide-react';
 import Link from 'next/link';
 
+interface TestCase {
+  id: string;
+  input: string;
+  output: string;
+  isHidden: boolean;
+}
+
 interface Question {
   id: string;
   title: string;
+  description: string;
   difficulty: 'Easy' | 'Medium' | 'Hard';
   points: number;
+  testCases: TestCase[];
+  expanded?: boolean;
 }
 
 export default function CreateContestPage() {
   const [questions, setQuestions] = useState<Question[]>([
-    { id: 'q1', title: 'Two Sum', difficulty: 'Easy', points: 200 },
-    { id: 'q2', title: 'Longest Substring', difficulty: 'Medium', points: 500 },
+    { id: 'q1', title: 'Two Sum', description: 'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.', difficulty: 'Easy', points: 200, testCases: [{ id: 'tc1', input: '[2,7,11,15]\n9', output: '[0,1]', isHidden: false }], expanded: true },
   ]);
   const [step, setStep] = useState(1);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [difficulty, setDifficulty] = useState('Medium');
+  const [startTime, setStartTime] = useState('');
+  const [tags, setTags] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const addQuestion = () => {
     setQuestions((prev) => [...prev, {
-      id: `q${prev.length + 1}`,
+      id: `q${Date.now()}`,
       title: `Question ${prev.length + 1}`,
+      description: '',
       difficulty: 'Medium',
       points: 400,
+      testCases: [{ id: `tc${Date.now()}`, input: '', output: '', isHidden: false }],
+      expanded: true
     }]);
   };
 
   const removeQuestion = (id: string) => {
     setQuestions((prev) => prev.filter((q) => q.id !== id));
+  };
+
+  const handleCreateContest = async () => {
+    setIsSubmitting(true);
+    try {
+      const start = startTime ? new Date(startTime) : new Date();
+      const end = new Date(start.getTime() + 3 * 60 * 60 * 1000); // Default 3 hours
+
+      const res = await fetch('/api/contests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title || 'New Contest',
+          description: description || '',
+          difficulty: difficulty.toUpperCase(),
+          status: 'UPCOMING',
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+          tags: tags ? tags.split(',').map((t) => t.trim()) : [],
+          questions: questions.map(q => ({
+            title: q.title,
+            description: q.description,
+            difficulty: q.difficulty.toUpperCase(),
+            points: q.points,
+            testCases: q.testCases
+          }))
+        }),
+      });
+
+      if (res.ok) {
+        window.location.href = '/admin/contests';
+      } else {
+        console.error('Failed to create contest');
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -78,28 +135,28 @@ export default function CreateContestPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Contest Title *</label>
-                <input type="text" placeholder="e.g. ByteBlitz Weekly #19" className="input-field w-full px-3 py-2.5 text-sm" />
+                <input type="text" placeholder="e.g. ByteBlitz Weekly #19" className="input-field w-full px-3 py-2.5 text-sm" value={title} onChange={(e) => setTitle(e.target.value)} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Start Date & Time *</label>
-                <input type="datetime-local" className="input-field w-full px-3 py-2.5 text-sm" />
+                <input type="datetime-local" className="input-field w-full px-3 py-2.5 text-sm" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Duration *</label>
-                <select className="input-field w-full px-3 py-2.5 text-sm">
+                <select className="input-field w-full px-3 py-2.5 text-sm" defaultValue="3 hours">
                   <option>1 hour</option>
                   <option>1.5 hours</option>
                   <option>2 hours</option>
                   <option>2.5 hours</option>
-                  <option selected>3 hours</option>
+                  <option>3 hours</option>
                   <option>5 hours</option>
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Difficulty</label>
-                <select className="input-field w-full px-3 py-2.5 text-sm">
+                <select className="input-field w-full px-3 py-2.5 text-sm" value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
                   <option>Easy</option>
-                  <option selected>Medium</option>
+                  <option>Medium</option>
                   <option>Hard</option>
                 </select>
               </div>
@@ -109,11 +166,11 @@ export default function CreateContestPage() {
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Description</label>
-                <textarea rows={4} placeholder="Contest description, rules, and prizes..." className="input-field w-full px-3 py-2.5 text-sm resize-none" />
+                <textarea rows={4} placeholder="Contest description, rules, and prizes..." className="input-field w-full px-3 py-2.5 text-sm resize-none" value={description} onChange={(e) => setDescription(e.target.value)} />
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Tags (comma separated)</label>
-                <input type="text" placeholder="Graphs, DP, Trees, Greedy" className="input-field w-full px-3 py-2.5 text-sm" />
+                <input type="text" placeholder="Graphs, DP, Trees, Greedy" className="input-field w-full px-3 py-2.5 text-sm" value={tags} onChange={(e) => setTags(e.target.value)} />
               </div>
             </div>
             <button onClick={() => setStep(2)} className="btn-primary px-5 py-2.5 rounded-xl text-sm font-semibold">
@@ -133,39 +190,114 @@ export default function CreateContestPage() {
                 </button>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {questions.map((q, i) => (
-                  <div key={q.id} className="flex items-center gap-3 p-4 rounded-xl border border-border hover:border-sky-500/30 transition-colors">
-                    <span className="w-7 h-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-bold text-sky-300 flex-shrink-0">
-                      {i + 1}
-                    </span>
-                    <div className="flex-1 grid grid-cols-3 gap-3">
-                      <input
-                        type="text"
-                        value={q.title}
-                        onChange={(e) => setQuestions((prev) => prev.map((p) => p.id === q.id ? { ...p, title: e.target.value } : p))}
-                        className="input-field px-3 py-2 text-sm col-span-1"
-                      />
-                      <select
-                        value={q.difficulty}
-                        onChange={(e) => setQuestions((prev) => prev.map((p) => p.id === q.id ? { ...p, difficulty: e.target.value as 'Easy' | 'Medium' | 'Hard' } : p))}
-                        className="input-field px-3 py-2 text-sm"
-                      >
-                        <option>Easy</option>
-                        <option>Medium</option>
-                        <option>Hard</option>
-                      </select>
-                      <input
-                        type="number"
-                        value={q.points}
-                        onChange={(e) => setQuestions((prev) => prev.map((p) => p.id === q.id ? { ...p, points: Number(e.target.value) } : p))}
-                        className="input-field px-3 py-2 text-sm"
-                        placeholder="Points"
-                      />
+                  <div key={q.id} className="rounded-xl border border-border hover:border-sky-500/30 transition-colors overflow-hidden">
+                    <div className="flex items-center gap-3 p-4 bg-background/50">
+                      <span className="w-7 h-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-bold text-sky-300 flex-shrink-0">
+                        {i + 1}
+                      </span>
+                      <div className="flex-1 grid grid-cols-3 gap-3">
+                        <input
+                          type="text"
+                          value={q.title}
+                          onChange={(e) => setQuestions((prev) => prev.map((p) => p.id === q.id ? { ...p, title: e.target.value } : p))}
+                          className="input-field px-3 py-2 text-sm col-span-1 font-semibold"
+                          placeholder="Problem Title"
+                        />
+                        <select
+                          value={q.difficulty}
+                          onChange={(e) => setQuestions((prev) => prev.map((p) => p.id === q.id ? { ...p, difficulty: e.target.value as 'Easy' | 'Medium' | 'Hard' } : p))}
+                          className="input-field px-3 py-2 text-sm"
+                        >
+                          <option>Easy</option>
+                          <option>Medium</option>
+                          <option>Hard</option>
+                        </select>
+                        <input
+                          type="number"
+                          value={q.points}
+                          onChange={(e) => setQuestions((prev) => prev.map((p) => p.id === q.id ? { ...p, points: Number(e.target.value) } : p))}
+                          className="input-field px-3 py-2 text-sm"
+                          placeholder="Points"
+                        />
+                      </div>
+                      <button onClick={() => setQuestions(prev => prev.map(p => p.id === q.id ? { ...p, expanded: !p.expanded } : p))} className="p-1.5 rounded-lg text-muted-foreground hover:bg-white/5 transition-colors">
+                        {q.expanded ? 'Collapse' : 'Expand'}
+                      </button>
+                      <button onClick={() => removeQuestion(q.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                        <Trash2 size={14} />
+                      </button>
                     </div>
-                    <button onClick={() => removeQuestion(q.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors">
-                      <Trash2 size={14} />
-                    </button>
+
+                    {q.expanded && (
+                      <div className="p-4 border-t border-border/50 bg-background/30 space-y-4">
+                        <div>
+                          <label className="block text-xs font-medium text-muted-foreground mb-1.5">Problem Statement</label>
+                          <textarea
+                            rows={3}
+                            value={q.description}
+                            onChange={(e) => setQuestions((prev) => prev.map((p) => p.id === q.id ? { ...p, description: e.target.value } : p))}
+                            className="input-field w-full px-3 py-2.5 text-sm resize-none"
+                            placeholder="Describe the problem clearly..."
+                          />
+                        </div>
+                        
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <label className="block text-xs font-medium text-muted-foreground">Test Cases ({q.testCases.length})</label>
+                            <button
+                              onClick={() => setQuestions(prev => prev.map(p => p.id === q.id ? { ...p, testCases: [...p.testCases, { id: `tc${Date.now()}`, input: '', output: '', isHidden: false }] } : p))}
+                              className="text-xs text-primary hover:text-sky-300 font-medium flex items-center gap-1"
+                            >
+                              <Plus size={12} /> Add Case
+                            </button>
+                          </div>
+                          
+                          {q.testCases.map((tc, tcIdx) => (
+                            <div key={tc.id} className="grid grid-cols-2 gap-3 relative group bg-background/50 p-3 rounded-lg border border-border/50">
+                              <div>
+                                <label className="block text-[10px] uppercase font-semibold text-muted-foreground mb-1">Input</label>
+                                <textarea
+                                  rows={2}
+                                  value={tc.input}
+                                  onChange={(e) => setQuestions(prev => prev.map(p => p.id === q.id ? { ...p, testCases: p.testCases.map(t => t.id === tc.id ? { ...t, input: e.target.value } : t) } : p))}
+                                  className="input-field w-full px-2 py-1.5 text-xs font-mono bg-black/20"
+                                  placeholder="e.g. 5\n1 2 3 4 5"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] uppercase font-semibold text-muted-foreground mb-1 flex items-center justify-between">
+                                  Output
+                                  <label className="flex items-center gap-1.5 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={tc.isHidden}
+                                      onChange={(e) => setQuestions(prev => prev.map(p => p.id === q.id ? { ...p, testCases: p.testCases.map(t => t.id === tc.id ? { ...t, isHidden: e.target.checked } : t) } : p))}
+                                      className="w-3 h-3 rounded-sm border-border accent-primary"
+                                    />
+                                    <span className="text-[10px] normal-case font-medium">Hidden</span>
+                                  </label>
+                                </label>
+                                <textarea
+                                  rows={2}
+                                  value={tc.output}
+                                  onChange={(e) => setQuestions(prev => prev.map(p => p.id === q.id ? { ...p, testCases: p.testCases.map(t => t.id === tc.id ? { ...t, output: e.target.value } : t) } : p))}
+                                  className="input-field w-full px-2 py-1.5 text-xs font-mono bg-black/20"
+                                  placeholder="e.g. 15"
+                                />
+                              </div>
+                              <button
+                                onClick={() => setQuestions(prev => prev.map(p => p.id === q.id ? { ...p, testCases: p.testCases.filter(t => t.id !== tc.id) } : p))}
+                                className="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 p-1 bg-red-500/20 text-red-400 rounded-full hover:bg-red-500/40 transition-all"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -204,9 +336,9 @@ export default function CreateContestPage() {
             </div>
             <div className="flex gap-3">
               <button onClick={() => setStep(2)} className="btn-secondary px-5 py-2.5 rounded-xl text-sm font-semibold">← Back</button>
-              <button className="btn-primary px-5 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2">
+              <button onClick={handleCreateContest} disabled={isSubmitting} className="btn-primary px-5 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 disabled:opacity-50">
                 <Save size={14} />
-                Create Contest
+                {isSubmitting ? 'Creating...' : 'Create Contest'}
               </button>
               <button className="btn-secondary px-5 py-2.5 rounded-xl text-sm font-semibold">Save as Draft</button>
             </div>

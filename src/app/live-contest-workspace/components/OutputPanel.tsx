@@ -9,13 +9,18 @@ interface OutputPanelProps {
   result: RunResult;
   onClose: () => void;
   problem: Problem;
+  onRunCustom?: (input: string) => void;
 }
 
 type OutputTab = 'testcase' | 'result' | 'custom';
 
-export default function OutputPanel({ result, onClose, problem }: OutputPanelProps) {
+export default function OutputPanel({ result, onClose, problem, onRunCustom }: OutputPanelProps) {
   const [activeTab, setActiveTab] = useState<OutputTab>('result');
   const [customInput, setCustomInput] = useState(problem.examples[0]?.input ?? '');
+
+  React.useEffect(() => {
+    setCustomInput(problem.examples[0]?.input ?? '');
+  }, [problem]);
 
   const statusConfig = {
     running: { label: 'Running...', color: 'text-amber-300', bg: 'bg-amber-500/10', border: 'border-amber-500/20', icon: null },
@@ -140,18 +145,25 @@ export default function OutputPanel({ result, onClose, problem }: OutputPanelPro
 
         {activeTab === 'testcase' && (
           <div className="space-y-3">
-            {problem.examples.map((ex, i) => (
-              <div key={`ex-out-${problem.id}-${i}`} className="border border-border rounded-lg overflow-hidden">
-                <div className="flex items-center justify-between px-3 py-2 bg-muted/20 border-b border-border">
+            {problem.examples.map((ex, i) => {
+              const tcRes = result.testcaseResults?.[i];
+              const passed = tcRes?.passed;
+              const hasRun = tcRes !== undefined;
+
+              return (
+              <div key={`ex-out-${problem.id}-${i}`} className={`border ${passed === false ? 'border-red-500/30' : 'border-border'} rounded-lg overflow-hidden`}>
+                <div className={`flex items-center justify-between px-3 py-2 ${passed === false ? 'bg-red-500/10' : 'bg-muted/20'} border-b border-border`}>
                   <span className="text-xs font-medium text-muted-foreground">Sample Test {i + 1}</span>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    result.status === 'accepted' ?'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25' :'bg-muted text-muted-foreground border border-border'
+                    hasRun
+                      ? (passed ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25' : 'bg-red-500/15 text-red-300 border border-red-500/25')
+                      : 'bg-muted text-muted-foreground border border-border'
                   }`}>
-                    {result.status === 'accepted' ? '✓ Passed' : 'Not run'}
+                    {hasRun ? (passed ? '✓ Passed' : '✗ Failed') : 'Not run'}
                   </span>
                 </div>
                 <div className="p-3 grid grid-cols-2 gap-3">
-                  <div>
+                  <div className="col-span-2">
                     <p className="text-xs text-muted-foreground mb-1">Input</p>
                     <pre className="code-panel p-2 text-xs text-cyan-300 rounded overflow-x-auto whitespace-pre-wrap">{ex.input}</pre>
                   </div>
@@ -159,11 +171,15 @@ export default function OutputPanel({ result, onClose, problem }: OutputPanelPro
                     <p className="text-xs text-muted-foreground mb-1">Expected</p>
                     <pre className="code-panel p-2 text-xs text-emerald-300 rounded overflow-x-auto whitespace-pre-wrap">{ex.output}</pre>
                   </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Your Output</p>
+                    <pre className={`code-panel p-2 text-xs ${hasRun ? (passed ? 'text-emerald-300' : 'text-red-300') : 'text-muted-foreground'} rounded overflow-x-auto whitespace-pre-wrap`}>{hasRun ? tcRes.output || '(empty)' : '(not run)'}</pre>
+                  </div>
                 </div>
               </div>
-            ))}
+            )})}
             <p className="text-xs text-muted-foreground text-center py-2">
-              Hidden test cases: 10 additional cases run on submission only
+              Hidden test cases are evaluated upon submission.
             </p>
           </div>
         )}
@@ -179,7 +195,13 @@ export default function OutputPanel({ result, onClose, problem }: OutputPanelPro
                 placeholder="Enter custom test input..."
               />
             </div>
-            <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-xs font-semibold hover:bg-emerald-600/30 transition-all duration-150 active:scale-95">
+            <button 
+              onClick={() => {
+                if (onRunCustom) onRunCustom(customInput);
+                setActiveTab('result');
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-xs font-semibold hover:bg-emerald-600/30 transition-all duration-150 active:scale-95"
+            >
               <Play size={12} />
               Run with Custom Input
             </button>

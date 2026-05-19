@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import AppLayout from '@/components/AppLayout';
 import Link from 'next/link';
 import { Users, Swords, Activity, TrendingUp, AlertTriangle, Eye, PlusCircle, BarChart2, Zap, ArrowRight, Shield,  } from 'lucide-react';
@@ -7,35 +7,6 @@ import {
   AreaChart, Area, BarChart, Bar, ResponsiveContainer, XAxis, YAxis,
   Tooltip, CartesianGrid,
 } from 'recharts';
-import Icon from '@/components/ui/AppIcon';
-
-
-const submissionFlow = [
-  { time: '09:00', count: 120 }, { time: '09:30', count: 340 },
-  { time: '10:00', count: 580 }, { time: '10:30', count: 720 },
-  { time: '11:00', count: 890 }, { time: '11:30', count: 1040 },
-  { time: '12:00', count: 1180 },
-];
-
-const contestActivity = [
-  { name: 'ByteBlitz #18', participants: 3842, submissions: 18420 },
-  { name: 'AlgoArena #6', participants: 1204, submissions: 4816 },
-  { name: 'CodeStorm #4', participants: 2100, submissions: 8400 },
-];
-
-const recentAlerts = [
-  { id: 'a1', type: 'warning', message: 'User #4821 flagged for tab switching (3x)', time: '2 min ago' },
-  { id: 'a2', type: 'danger', message: 'Suspicious submission pattern detected — User #2341', time: '8 min ago' },
-  { id: 'a3', type: 'info', message: 'ByteBlitz #18 — 1 hour remaining', time: '15 min ago' },
-  { id: 'a4', type: 'success', message: 'AlgoArena #6 results published successfully', time: '1 hour ago' },
-];
-
-const kpis = [
-  { label: 'Active Users', value: '84,219', icon: Users, change: '+1.2k today', color: 'sky' },
-  { label: 'Live Contests', value: '2', icon: Swords, change: '5,046 participants', color: 'red' },
-  { label: 'Submissions Today', value: '24,836', icon: Activity, change: '+18% vs yesterday', color: 'emerald' },
-  { label: 'Avg Rating', value: '1,847', icon: TrendingUp, change: '+12 this week', color: 'amber' },
-];
 
 const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) => {
   if (active && payload && payload.length) {
@@ -50,6 +21,48 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 };
 
 export default function AdminDashboardPage() {
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/admin?action=stats')
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error) {
+          setStats(data);
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to fetch admin stats', err);
+        setLoading(false);
+      });
+  }, []);
+
+  const kpis = stats ? [
+    { label: 'Total Users', value: stats.usersCount.toLocaleString(), icon: Users, change: 'Active platform users', color: 'sky' },
+    { label: 'Live Contests', value: stats.liveContestsCount.toString(), icon: Swords, change: 'Currently running', color: 'red' },
+    { label: 'Total Submissions', value: stats.submissionsCount.toLocaleString(), icon: Activity, change: 'Across all problems', color: 'emerald' },
+    { label: 'Avg Rating', value: stats.avgRating.toLocaleString(), icon: TrendingUp, change: 'Platform average', color: 'amber' },
+  ] : [
+    { label: 'Total Users', value: '-', icon: Users, change: 'Loading...', color: 'sky' },
+    { label: 'Live Contests', value: '-', icon: Swords, change: 'Loading...', color: 'red' },
+    { label: 'Total Submissions', value: '-', icon: Activity, change: 'Loading...', color: 'emerald' },
+    { label: 'Avg Rating', value: '-', icon: TrendingUp, change: 'Loading...', color: 'amber' },
+  ];
+
+  // Using empty data states until actual time-series analytics are implemented on the backend
+  const submissionFlow = [
+    { time: 'Start', count: 0 },
+    { time: 'Now', count: stats?.submissionsCount || 0 }
+  ];
+
+  const contestActivity = [
+    { name: 'Contest', participants: 0, submissions: 0 }
+  ];
+
+  const recentAlerts: any[] = []; // No hardcoded alerts
+
   return (
     <AppLayout currentPath="/admin/dashboard" role="admin">
       <div className="px-6 lg:px-8 xl:px-10 py-6 max-w-screen-2xl mx-auto space-y-6">
@@ -92,7 +105,7 @@ export default function AdminDashboardPage() {
         {/* Charts row */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <div className="bg-card-elevated border border-border rounded-xl p-5">
-            <h2 className="text-sm font-semibold text-foreground mb-4">Live Submission Flow</h2>
+            <h2 className="text-sm font-semibold text-foreground mb-4">Submission Flow</h2>
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={submissionFlow}>
                 <defs>
@@ -133,7 +146,7 @@ export default function AdminDashboardPage() {
               Recent Alerts
             </h2>
             <div className="space-y-3">
-              {recentAlerts.map((alert) => (
+              {recentAlerts.length > 0 ? recentAlerts.map((alert) => (
                 <div key={alert.id} className={`flex items-start gap-3 p-3 rounded-xl border ${
                   alert.type === 'danger' ? 'bg-red-500/5 border-red-500/20' :
                   alert.type === 'warning' ? 'bg-amber-500/5 border-amber-500/20' :
@@ -149,7 +162,9 @@ export default function AdminDashboardPage() {
                     <p className="text-xs text-muted-foreground mt-0.5">{alert.time}</p>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <div className="text-sm text-muted-foreground text-center py-4">No recent system alerts</div>
+              )}
             </div>
           </div>
 

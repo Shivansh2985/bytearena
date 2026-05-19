@@ -20,16 +20,7 @@ interface Contest {
   registered?: boolean;
 }
 
-const allContests: Contest[] = [
-  { id: 'c1', title: 'ByteBlitz Weekly #18', difficulty: 'Medium', status: 'live', startTime: Date.now() - 3600000, endTime: Date.now() + 5400000, participants: 3842, totalQuestions: 5, tags: ['Graphs', 'DP', 'Trees'], myRank: 342, myScore: 1800, registered: true },
-  { id: 'c2', title: 'AlgoArena Qualifier #6', difficulty: 'Hard', status: 'live', startTime: Date.now() - 1800000, endTime: Date.now() + 9900000, participants: 1204, totalQuestions: 4, tags: ['Segment Tree', 'Greedy'], myRank: null, myScore: null, registered: false },
-  { id: 'c3', title: 'CodeStorm Sprint #4', difficulty: 'Easy', status: 'upcoming', startTime: Date.now() + 86400000, endTime: Date.now() + 90000000, participants: 0, totalQuestions: 6, tags: ['Arrays', 'Strings', 'Math'], registered: false },
-  { id: 'c4', title: 'ByteBlitz Weekly #19', difficulty: 'Medium', status: 'upcoming', startTime: Date.now() + 172800000, endTime: Date.now() + 176400000, participants: 0, totalQuestions: 5, tags: ['DP', 'Binary Search'], registered: true },
-  { id: 'c5', title: 'ICPC Practice Round', difficulty: 'Hard', status: 'upcoming', startTime: Date.now() + 259200000, endTime: Date.now() + 270000000, participants: 0, totalQuestions: 8, tags: ['Geometry', 'Flows', 'Strings'], registered: false },
-  { id: 'c6', title: 'ByteBlitz Weekly #17', difficulty: 'Medium', status: 'completed', startTime: Date.now() - 604800000, endTime: Date.now() - 601200000, participants: 3200, totalQuestions: 5, tags: ['Graphs', 'DP'], myRank: 42, myScore: 2100, registered: true },
-  { id: 'c7', title: 'AlgoArena Qualifier #5', difficulty: 'Hard', status: 'completed', startTime: Date.now() - 1209600000, endTime: Date.now() - 1206000000, participants: 1800, totalQuestions: 4, tags: ['Trie', 'Segment Tree'], myRank: 128, myScore: 1600, registered: true },
-  { id: 'c8', title: 'CodeStorm Sprint #3', difficulty: 'Easy', status: 'completed', startTime: Date.now() - 1814400000, endTime: Date.now() - 1810800000, participants: 2100, totalQuestions: 6, tags: ['Arrays', 'Sorting'], myRank: 89, myScore: 1900, registered: true },
-];
+// Removed mock data
 
 function CountdownTimer({ endTime, startTime, status }: { endTime: number; startTime: number; status: string }) {
   const [timeLeft, setTimeLeft] = useState('');
@@ -57,8 +48,27 @@ function CountdownTimer({ endTime, startTime, status }: { endTime: number; start
 export default function ContestsPage() {
   const [filter, setFilter] = useState<'all' | 'live' | 'upcoming' | 'completed'>('all');
   const [search, setSearch] = useState('');
+  const [contests, setContests] = useState<Contest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const filtered = allContests.filter((c) => {
+  useEffect(() => {
+    async function fetchContests() {
+      try {
+        const res = await fetch('/api/contests');
+        if (res.ok) {
+          const data = await res.json();
+          setContests(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch contests', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchContests();
+  }, []);
+
+  const filtered = contests.filter((c) => {
     const matchStatus = filter === 'all' || c.status === filter;
     const matchSearch = c.title.toLowerCase().includes(search.toLowerCase()) ||
       c.tags.some((t) => t.toLowerCase().includes(search.toLowerCase()));
@@ -165,7 +175,7 @@ export default function ContestsPage() {
               </div>
 
               {c.status === 'live' ? (
-                <Link href="/live-contest-workspace">
+                <Link href={`/live-contest-workspace/${c.id}`}>
                   <button className="btn-primary w-full py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5">
                     {c.registered ? 'Continue Contest' : 'Join Now'}
                     <ArrowRight size={12} />

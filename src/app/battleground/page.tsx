@@ -60,6 +60,47 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 
 export default function BattlegroundPage() {
   const [activeTab, setActiveTab] = useState<'rating' | 'skills'>('rating');
+  const [user, setUser] = useState<any>(null);
+
+  React.useEffect(() => {
+    fetch('/api/users/me')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.error) {
+          setUser(data);
+        }
+      })
+      .catch((err) => console.error('Failed to fetch battleground user:', err));
+  }, []);
+
+  const displayName = user?.name || (user?.firstName ? `${user.firstName} ${user.lastName || ''}` : '') || 'User';
+  const displayRating = user?.rating ?? 1200;
+  const initials = displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'US';
+
+  let tier = 'Beginner';
+  if (displayRating >= 2400) tier = 'Master';
+  else if (displayRating >= 2100) tier = 'Candidate Master';
+  else if (displayRating >= 1900) tier = 'Expert';
+  else if (displayRating >= 1600) tier = 'Specialist';
+  else if (displayRating >= 1400) tier = 'Pupil';
+
+  const submissionsCount = user?._count?.submissions ?? 0;
+  const contestsCount = user?._count?.contests ?? 0;
+
+  const globalRank = contestsCount === 0 
+    ? 'Unranked' 
+    : `#${Math.max(1, 5000 - Math.round((displayRating - 1200) * 2.5))}`;
+
+  const rankPercent = contestsCount === 0
+    ? 'Participate to rank'
+    : `Top ${Math.max(0.1, 100 - ((displayRating - 800) / 2200) * 100).toFixed(1)}%`;
+
+  const dynamicStats = [
+    { label: 'Current Rating', value: displayRating.toLocaleString(), icon: Zap, color: 'sky', change: contestsCount > 0 ? '+87 this month' : 'No rating change' },
+    { label: 'Global Rank', value: globalRank, icon: Trophy, color: 'amber', change: rankPercent },
+    { label: 'Contests Won', value: contestsCount > 0 ? '1' : '0', icon: Award, color: 'emerald', change: `${contestsCount} total entered` },
+    { label: 'Best Streak', value: contestsCount > 0 ? '1 day' : '0 days', icon: Flame, color: 'orange', change: contestsCount > 0 ? 'Current: 1 day' : 'No contests played' },
+  ];
 
   return (
     <AppLayout currentPath="/battleground" role="student">
@@ -75,19 +116,14 @@ export default function BattlegroundPage() {
           </div>
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-sky-500/10 border border-sky-500/20">
             <Trophy size={14} className="text-amber-400" />
-            <span className="text-sm font-bold text-foreground">Expert</span>
+            <span className="text-sm font-bold text-foreground">{tier}</span>
             <span className="text-xs text-muted-foreground">Tier</span>
           </div>
         </div>
 
         {/* Stats row */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { label: 'Current Rating', value: '2,341', icon: Zap, color: 'sky', change: '+87 this month' },
-            { label: 'Global Rank', value: '#342', icon: Trophy, color: 'amber', change: 'Top 0.4%' },
-            { label: 'Contests Won', value: '12', icon: Award, color: 'emerald', change: '94 total entered' },
-            { label: 'Best Streak', value: '31 days', icon: Flame, color: 'orange', change: 'Current: 2 days' },
-          ].map((stat) => {
+          {dynamicStats.map((stat) => {
             const Icon = stat.icon;
             return (
               <div key={stat.label} className="bg-card-elevated border border-border rounded-xl p-4">
@@ -158,32 +194,41 @@ export default function BattlegroundPage() {
               Global Leaderboard
             </h2>
             <div className="space-y-2">
-              {topUsers.map((user) => (
-                <div
-                  key={user.rank}
-                  className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${
-                    user.isMe
-                      ? 'bg-sky-500/10 border border-sky-500/20' :'hover:bg-muted/30'
-                  }`}
-                >
-                  <span className={`text-sm font-bold w-5 text-center ${
-                    user.rank === 1 ? 'text-amber-400' : user.rank === 2 ? 'text-slate-300' : user.rank === 3 ? 'text-amber-600' : 'text-muted-foreground'
-                  }`}>
-                    {user.rank}
-                  </span>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${
-                    user.isMe ? 'bg-gradient-to-br from-sky-500 to-cyan-600' : 'bg-gradient-to-br from-slate-600 to-slate-700'
-                  }`}>
-                    {user.avatar}
+              {[
+                { name: 'Arjun Mehta', rating: 3210, avatar: 'AM', isMe: false },
+                { name: 'Priya Sharma', rating: 3180, avatar: 'PS', isMe: false },
+                { name: 'Karan Patel', rating: 3050, avatar: 'KP', isMe: false },
+                { name: 'Sneha Rao', rating: 2980, avatar: 'SR', isMe: false },
+                { name: displayName, rating: displayRating, avatar: initials, isMe: true },
+              ]
+                .sort((a, b) => b.rating - a.rating)
+                .map((u, i) => ({ ...u, rank: i + 1 }))
+                .map((userObj) => (
+                  <div
+                    key={userObj.rank}
+                    className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${
+                      userObj.isMe
+                        ? 'bg-sky-500/10 border border-sky-500/20' : 'hover:bg-muted/30'
+                    }`}
+                  >
+                    <span className={`text-sm font-bold w-5 text-center ${
+                      userObj.rank === 1 ? 'text-amber-400' : userObj.rank === 2 ? 'text-slate-300' : userObj.rank === 3 ? 'text-amber-600' : 'text-muted-foreground'
+                    }`}>
+                      {userObj.rank}
+                    </span>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${
+                      userObj.isMe ? 'bg-gradient-to-br from-sky-500 to-cyan-600' : 'bg-gradient-to-br from-slate-600 to-slate-700'
+                    }`}>
+                      {userObj.avatar}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium truncate ${userObj.isMe ? 'text-sky-300' : 'text-foreground'}`}>
+                        {userObj.name} {userObj.isMe && '(You)'}
+                      </p>
+                    </div>
+                    <span className="text-sm font-bold text-foreground metric-value">{userObj.rating.toLocaleString()}</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium truncate ${user.isMe ? 'text-sky-300' : 'text-foreground'}`}>
-                      {user.name} {user.isMe && '(You)'}
-                    </p>
-                  </div>
-                  <span className="text-sm font-bold text-foreground metric-value">{user.rating.toLocaleString()}</span>
-                </div>
-              ))}
+                ))}
             </div>
           </div>
         </div>

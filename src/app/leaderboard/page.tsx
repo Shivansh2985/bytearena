@@ -16,7 +16,7 @@ interface LeaderboardEntry {
   isMe?: boolean;
 }
 
-const leaderboardData: LeaderboardEntry[] = [
+const staticLeaderboardData = [
   { rank: 1, name: 'Arjun Mehta', avatar: 'AM', rating: 3210, change: 45, contests: 142, solved: 2340, country: '🇮🇳', tier: 'Grandmaster' },
   { rank: 2, name: 'Priya Sharma', avatar: 'PS', rating: 3180, change: -12, contests: 138, solved: 2210, country: '🇮🇳', tier: 'Grandmaster' },
   { rank: 3, name: 'Karan Patel', avatar: 'KP', rating: 3050, change: 78, contests: 121, solved: 1980, country: '🇮🇳', tier: 'Master' },
@@ -26,7 +26,6 @@ const leaderboardData: LeaderboardEntry[] = [
   { rank: 7, name: 'Rohan Joshi', avatar: 'RJ', rating: 2650, change: 56, contests: 94, solved: 1520, country: '🇮🇳', tier: 'Expert' },
   { rank: 8, name: 'Meera Nair', avatar: 'MN', rating: 2540, change: 12, contests: 88, solved: 1430, country: '🇮🇳', tier: 'Expert' },
   { rank: 9, name: 'Aditya Kumar', avatar: 'AK', rating: 2420, change: -8, contests: 82, solved: 1310, country: '🇮🇳', tier: 'Expert' },
-  { rank: 342, name: 'Rahul Kumar', avatar: 'RK', rating: 2341, change: 87, contests: 94, solved: 1047, country: '🇮🇳', tier: 'Expert', isMe: true },
 ];
 
 const tierColors: Record<string, string> = {
@@ -35,11 +34,53 @@ const tierColors: Record<string, string> = {
   Expert: 'text-sky-400',
   Specialist: 'text-cyan-400',
   Pupil: 'text-emerald-400',
+  Beginner: 'text-slate-400',
 };
 
 export default function LeaderboardPage() {
   const [search, setSearch] = useState('');
   const [period, setPeriod] = useState<'all' | 'month' | 'week'>('all');
+  const [user, setUser] = useState<any>(null);
+
+  React.useEffect(() => {
+    fetch('/api/users/me')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.error) {
+          setUser(data);
+        }
+      })
+      .catch((err) => console.error('Failed to fetch leaderboard user data:', err));
+  }, []);
+
+  const displayName = user?.name || (user?.firstName ? `${user.firstName} ${user.lastName || ''}` : '') || 'User';
+  const displayRating = user?.rating ?? 1200;
+  const initials = displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'US';
+
+  let tier = 'Beginner';
+  if (displayRating >= 2400) tier = 'Master';
+  else if (displayRating >= 2100) tier = 'Candidate Master';
+  else if (displayRating >= 1900) tier = 'Expert';
+  else if (displayRating >= 1600) tier = 'Specialist';
+  else if (displayRating >= 1400) tier = 'Pupil';
+
+  const contestsCount = user?._count?.contests ?? 0;
+  const submissionsCount = user?._count?.submissions ?? 0;
+
+  const dynamicMe: LeaderboardEntry = {
+    rank: contestsCount === 0 ? 342 : Math.max(10, 5000 - Math.round((displayRating - 1200) * 2.5)),
+    name: displayName,
+    avatar: initials,
+    rating: displayRating,
+    change: contestsCount > 0 ? 87 : 0,
+    contests: contestsCount,
+    solved: submissionsCount,
+    country: '🇮🇳',
+    tier: tier,
+    isMe: true,
+  };
+
+  const leaderboardData: LeaderboardEntry[] = [...staticLeaderboardData, dynamicMe];
 
   const filtered = leaderboardData.filter((u) =>
     u.name.toLowerCase().includes(search.toLowerCase())

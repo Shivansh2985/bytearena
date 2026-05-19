@@ -3,10 +3,12 @@ import React, { useState } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Eye, AlertTriangle, Camera, CameraOff, Monitor, ShieldOff, Users, Activity, X, CheckCircle,  } from 'lucide-react';
 import Icon from '@/components/ui/AppIcon';
-
+import { io, Socket } from 'socket.io-client';
+import { useEffect, useRef } from 'react';
 
 interface Participant {
   id: string;
+  userId: string;
   name: string;
   avatar: string;
   rank: number;
@@ -17,16 +19,11 @@ interface Participant {
   tabSwitches: number;
   lastActivity: string;
   contest: string;
+  latestSnapshot?: string | null;
+  logs?: { time: string, event: string }[];
 }
 
-const participants: Participant[] = [
-  { id: 'p1', name: 'Rahul Kumar', avatar: 'RK', rank: 42, score: 1800, status: 'clean', warnings: 0, cameraStatus: 'active', tabSwitches: 0, lastActivity: '30s ago', contest: 'ByteBlitz #18' },
-  { id: 'p2', name: 'Arjun Mehta', avatar: 'AM', rank: 1, score: 2800, status: 'clean', warnings: 0, cameraStatus: 'active', tabSwitches: 1, lastActivity: '12s ago', contest: 'ByteBlitz #18' },
-  { id: 'p3', name: 'Sneha Rao', avatar: 'SR', rank: 89, score: 1200, status: 'warning', warnings: 2, cameraStatus: 'away', tabSwitches: 3, lastActivity: '2 min ago', contest: 'ByteBlitz #18' },
-  { id: 'p4', name: 'Vikram Singh', avatar: 'VS', rank: 156, score: 900, status: 'flagged', warnings: 5, cameraStatus: 'blocked', tabSwitches: 8, lastActivity: '5 min ago', contest: 'ByteBlitz #18' },
-  { id: 'p5', name: 'Priya Sharma', avatar: 'PS', rank: 3, score: 2600, status: 'clean', warnings: 0, cameraStatus: 'active', tabSwitches: 0, lastActivity: '8s ago', contest: 'AlgoArena #6' },
-  { id: 'p6', name: 'Karan Patel', avatar: 'KP', rank: 7, score: 2200, status: 'warning', warnings: 1, cameraStatus: 'active', tabSwitches: 2, lastActivity: '45s ago', contest: 'AlgoArena #6' },
-];
+// Dynamic state will be used instead of hardcoded data
 
 const statusConfig = {
   clean: { label: 'Clean', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
@@ -43,13 +40,96 @@ const cameraConfig = {
 export default function AdminProctoringPage() {
   const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
   const [contestFilter, setContestFilter] = useState<string>('all');
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [liveParticipants, setLiveParticipants] = useState<Participant[]>([]);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
 
-  const filtered = participants.filter((p) =>
+  useEffect(() => {
+    // Initialize Socket.IO connection
+    const fetchSocket = async () => {
+      await fetch('/api/socket');
+      const newSocket = io({ path: '/api/socket' });
+      setSocket(newSocket);
+
+      newSocket.on('connect', () => {
+        console.log('Connected to socket server as admin');
+        newSocket.emit('join-room', 'admin-room', 'admin-123', 'admin');
+      });
+
+      newSocket.on('user-joined', (data) => {
+        console.log('User joined:', data);
+      });
+
+      // Handle incoming WebRTC offer from a participant
+      newSocket.on('webrtc-offer', async (data) => {
+        if (!peerConnectionRef.current) {
+          const pc = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+          });
+          peerConnectionRef.current = pc;
+
+          pc.ontrack = (event) => {
+            if (videoRef.current) {
+              videoRef.current.srcObject = event.streams[0];
+            }
+          };
+
+          pc.onicecandidate = (event) => {
+            if (event.candidate) {
+              newSocket.emit('webrtc-ice-candidate', {
+                candidate: event.candidate,
+                toSocketId: data.fromSocketId
+              });
+            }
+          };
+
+          await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+
+          newSocket.emit('webrtc-answer', {
+            answer: pc.localDescription,
+            toSocketId: data.fromSocketId
+          });
+        }
+      });
+
+      newSocket.on('webrtc-ice-candidate', async (data) => {
+        if (peerConnectionRef.current && data.candidate) {
+          await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
+        }
+      });
+    };
+
+    const fetchUsers = async () => {
+      try {
+        const res = await fetch('/api/admin?action=proctoring');
+        const data = await res.json();
+        if (!data.error && Array.isArray(data)) {
+          setLiveParticipants(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch users for proctoring', err);
+      }
+    };
+
+    fetchSocket();
+    fetchUsers();
+
+    return () => {
+      socket?.disconnect();
+      peerConnectionRef.current?.close();
+    };
+  }, []);
+
+  const filtered = liveParticipants.filter((p) =>
     contestFilter === 'all' || p.contest === contestFilter
   );
 
-  const flaggedCount = participants.filter((p) => p.status === 'flagged').length;
-  const warningCount = participants.filter((p) => p.status === 'warning').length;
+  const flaggedCount = liveParticipants.filter((p) => p.status === 'flagged').length;
+  const warningCount = liveParticipants.filter((p) => p.status === 'warning').length;
+  const uniqueContests = Array.from(new Set(liveParticipants.map(p => p.contest)));
 
   return (
     <AppLayout currentPath="/admin/proctoring" role="admin">
@@ -61,19 +141,23 @@ export default function AdminProctoringPage() {
               <Eye size={22} className="text-sky-400" />
               Live Proctoring
             </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Monitor participants in real-time across all active contests</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Monitor participants in real-time across all active contests
+            </p>
           </div>
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20">
-            <span className="w-2 h-2 rounded-full bg-red-400 pulse-live" />
-            <span className="text-sm font-medium text-red-300">2 Live Contests</span>
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/20 text-xs font-semibold text-red-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+              {uniqueContests.length} Live Contests
+            </span>
           </div>
         </div>
 
-        {/* Alert stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {/* Overview Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Active Participants', value: participants.length.toString(), color: 'sky', icon: Users },
-            { label: 'Clean', value: participants.filter((p) => p.status === 'clean').length.toString(), color: 'emerald', icon: CheckCircle },
+            { label: 'Active Participants', value: liveParticipants.length.toString(), color: 'sky', icon: Users },
+            { label: 'Clean', value: liveParticipants.filter((p) => p.status === 'clean').length.toString(), color: 'emerald', icon: CheckCircle },
             { label: 'Warnings', value: warningCount.toString(), color: 'amber', icon: AlertTriangle },
             { label: 'Flagged', value: flaggedCount.toString(), color: 'red', icon: ShieldOff },
           ].map((s) => {
@@ -91,8 +175,8 @@ export default function AdminProctoringPage() {
         </div>
 
         {/* Contest filter */}
-        <div className="flex gap-1 bg-muted/30 border border-border rounded-xl p-1 w-fit">
-          {['all', 'ByteBlitz #18', 'AlgoArena #6'].map((f) => (
+        <div className="flex flex-wrap gap-1 bg-muted/30 border border-border rounded-xl p-1 w-fit">
+          {['all', ...uniqueContests].map((f) => (
             <button
               key={f}
               onClick={() => setContestFilter(f)}
@@ -123,14 +207,21 @@ export default function AdminProctoringPage() {
                     onClick={() => setSelectedParticipant(selectedParticipant?.id === p.id ? null : p)}
                   >
                     {/* Camera preview */}
-                    <div className={`w-full h-24 rounded-lg mb-3 flex flex-col items-center justify-center gap-1 border ${
+                    <div className={`w-full h-24 rounded-lg mb-3 flex flex-col items-center justify-center gap-1 border overflow-hidden relative ${
                       p.cameraStatus === 'active' ? 'bg-slate-900 border-emerald-500/20' :
                       p.cameraStatus === 'blocked'? 'bg-red-500/10 border-red-500/20' : 'bg-amber-500/10 border-amber-500/20'
                     }`}>
-                      <CamIcon size={20} className={camCfg.color} />
-                      <span className={`text-xs font-medium ${camCfg.color}`}>{camCfg.label}</span>
+                      {p.latestSnapshot ? (
+                        <img src={p.latestSnapshot} alt="Snapshot" className="w-full h-full object-cover" />
+                      ) : (
+                        <>
+                          <CamIcon size={20} className={camCfg.color} />
+                          <span className={`text-xs font-medium ${camCfg.color}`}>{camCfg.label}</span>
+                        </>
+                      )}
+                      
                       {p.cameraStatus === 'active' && (
-                        <div className="flex items-center gap-1">
+                        <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 px-1.5 py-0.5 rounded">
                           <span className="w-1.5 h-1.5 rounded-full bg-red-400 pulse-live" />
                           <span className="text-[10px] text-red-300">REC</span>
                         </div>
@@ -191,17 +282,16 @@ export default function AdminProctoringPage() {
               </div>
 
               {/* Live camera feed */}
-              <div className={`w-full h-36 rounded-xl flex flex-col items-center justify-center gap-2 border ${
+              <div className={`w-full h-48 rounded-xl flex flex-col items-center justify-center gap-2 border overflow-hidden relative ${
                 selectedParticipant.cameraStatus === 'active' ? 'bg-slate-900 border-emerald-500/20' :
                 selectedParticipant.cameraStatus === 'blocked'? 'bg-red-500/10 border-red-500/20' : 'bg-amber-500/10 border-amber-500/20'
               }`}>
                 {selectedParticipant.cameraStatus === 'active' ? (
                   <>
-                    <Camera size={24} className="text-emerald-400" />
-                    <span className="text-sm text-emerald-400 font-medium">Live Feed Active</span>
-                    <div className="flex items-center gap-1.5">
+                    <video ref={videoRef} autoPlay playsInline controls className="absolute inset-0 w-full h-full object-cover z-0" />
+                    <div className="z-10 absolute top-2 left-2 flex items-center gap-1.5 bg-black/60 px-2 py-1 rounded">
                       <span className="w-2 h-2 rounded-full bg-red-400 pulse-live" />
-                      <span className="text-xs text-red-300">Recording</span>
+                      <span className="text-xs text-red-300">Live Feed Active</span>
                     </div>
                   </>
                 ) : (
@@ -229,8 +319,26 @@ export default function AdminProctoringPage() {
                 ))}
               </div>
 
+              {/* Proctoring Logs */}
+              {selectedParticipant.logs && selectedParticipant.logs.length > 0 && (
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar border-t border-border pt-4">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Proctoring Log</h3>
+                  {selectedParticipant.logs.map((log, idx) => (
+                    <div key={idx} className="bg-background/50 border border-border/50 rounded-lg p-2.5 flex flex-col gap-1">
+                      <span className="text-[10px] text-muted-foreground font-mono">{log.time}</span>
+                      <p className={`text-xs ${log.event.includes('focus lost') || log.event.includes('blur') ? 'text-amber-400' : 'text-foreground'}`}>
+                        {log.event}
+                      </p>
+                    </div>
+                  ))}
+                  <p className="text-[10px] text-muted-foreground italic mt-2">
+                    Note: All proctoring events are reviewed by administrators after the contest.
+                  </p>
+                </div>
+              )}
+
               {/* Actions */}
-              <div className="space-y-2 pt-2 border-t border-border">
+              <div className="space-y-2 pt-4 border-t border-border">
                 <button className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border border-amber-500/20 bg-amber-500/5 text-amber-300 text-sm font-medium hover:bg-amber-500/10 transition-colors">
                   <AlertTriangle size={14} />
                   Issue Warning

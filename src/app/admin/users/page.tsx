@@ -19,16 +19,6 @@ interface User {
   tier: string;
 }
 
-const users: User[] = [
-  { id: 'u1', name: 'Arjun Mehta', email: 'arjun@example.com', avatar: 'AM', rating: 3210, rank: 1, contests: 142, status: 'active', joinDate: 'Jan 2024', lastActive: '2 min ago', tier: 'Grandmaster' },
-  { id: 'u2', name: 'Priya Sharma', email: 'priya@example.com', avatar: 'PS', rating: 3180, rank: 2, contests: 138, status: 'active', joinDate: 'Feb 2024', lastActive: '15 min ago', tier: 'Grandmaster' },
-  { id: 'u3', name: 'Karan Patel', email: 'karan@example.com', avatar: 'KP', rating: 3050, rank: 3, contests: 121, status: 'active', joinDate: 'Mar 2024', lastActive: '1 hour ago', tier: 'Master' },
-  { id: 'u4', name: 'Rahul Kumar', email: 'rahul.kumar@bytearena.dev', avatar: 'RK', rating: 2341, rank: 342, contests: 94, status: 'active', joinDate: 'Apr 2024', lastActive: 'Now', tier: 'Expert' },
-  { id: 'u5', name: 'Sneha Rao', email: 'sneha@example.com', avatar: 'SR', rating: 2980, rank: 4, contests: 115, status: 'suspended', joinDate: 'Jan 2024', lastActive: '3 days ago', tier: 'Master' },
-  { id: 'u6', name: 'Vikram Singh', email: 'vikram@example.com', avatar: 'VS', rating: 2890, rank: 5, contests: 108, status: 'blocked', joinDate: 'Feb 2024', lastActive: '1 week ago', tier: 'Master' },
-  { id: 'u7', name: 'Ananya Gupta', email: 'ananya@example.com', avatar: 'AG', rating: 2780, rank: 6, contests: 99, status: 'active', joinDate: 'Mar 2024', lastActive: '30 min ago', tier: 'Expert' },
-];
-
 const statusConfig = {
   active: { label: 'Active', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', icon: CheckCircle },
   blocked: { label: 'Blocked', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20', icon: XCircle },
@@ -39,6 +29,48 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  React.useEffect(() => {
+    fetch('/api/admin?action=users')
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error && Array.isArray(data)) {
+          const mapped = data.map((u: any, index: number) => {
+            const displayName = u.name || (u.firstName ? `${u.firstName} ${u.lastName || ''}` : '') || 'Unknown';
+            const initials = displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'US';
+            const rating = u.rating ?? 1200;
+            let tier = 'Beginner';
+            if (rating >= 2400) tier = 'Grandmaster';
+            else if (rating >= 2100) tier = 'Master';
+            else if (rating >= 1900) tier = 'Expert';
+            else if (rating >= 1600) tier = 'Specialist';
+            else if (rating >= 1400) tier = 'Pupil';
+
+            return {
+              id: u.id,
+              name: displayName,
+              email: u.email || 'No email',
+              avatar: initials,
+              rating: rating,
+              rank: index + 1,
+              contests: 0, // placeholder since we don't fetch counts here yet
+              status: 'active' as const,
+              joinDate: new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+              lastActive: 'Now',
+              tier: tier
+            };
+          });
+          setUsers(mapped);
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to fetch admin users', err);
+        setLoading(false);
+      });
+  }, []);
 
   const filtered = users.filter((u) => {
     const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -64,10 +96,10 @@ export default function AdminUsersPage() {
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: 'Total Users', value: '84,219', color: 'sky' },
-            { label: 'Active', value: '78,412', color: 'emerald' },
-            { label: 'Suspended', value: '3,241', color: 'amber' },
-            { label: 'Blocked', value: '2,566', color: 'red' },
+            { label: 'Total Users', value: users.length.toString(), color: 'sky' },
+            { label: 'Active', value: users.filter((u) => u.status === 'active').length.toString(), color: 'emerald' },
+            { label: 'Suspended', value: users.filter((u) => u.status === 'suspended').length.toString(), color: 'amber' },
+            { label: 'Blocked', value: users.filter((u) => u.status === 'blocked').length.toString(), color: 'red' },
           ].map((s) => (
             <div key={s.label} className="bg-card-elevated border border-border rounded-xl p-4 text-center">
               <p className={`text-2xl font-bold metric-value text-${s.color}-400`}>{s.value}</p>

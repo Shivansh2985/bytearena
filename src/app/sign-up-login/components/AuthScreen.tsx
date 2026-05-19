@@ -1,47 +1,33 @@
 'use client';
 import React, { useState } from 'react';
-
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
+import { motion } from 'framer-motion';
 import {
   Eye, EyeOff, Zap, Trophy, Users,
-  ArrowRight, Copy, Check, Shield, User,
-  ChevronRight, Star,
+  ArrowRight, Check, ChevronRight, Star,
+  ShieldAlert, UserPlus, Loader2,
 } from 'lucide-react';
 import AppLogo from '@/components/ui/AppLogo';
 import ToastProvider from '@/components/ui/Toast';
-import Icon from '@/components/ui/AppIcon';
+import { signIn } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 
-// GitHub SVG icon (inline, since lucide-react v1.x removed Github export)
-function GithubIcon({ size = 16 }: { size?: number }) {
+function GoogleIcon({ size = 16 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
+    <svg width={size} height={size} viewBox="0 0 24 24">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
     </svg>
   );
 }
 
 type AuthMode = 'login' | 'signup';
-type Role = 'student' | 'admin';
 
-interface LoginForm {
-  email: string;
-  password: string;
-  rememberMe: boolean;
-}
-
-interface SignupForm {
-  fullName: string;
-  email: string;
-  password: string;
-  confirmPassword: string;
-  agreeTerms: boolean;
-}
-
-const mockCredentials = {
-  student: { email: 'rahul.kumar@bytearena.dev', password: 'Student@2026' },
-  admin: { email: 'admin@bytearena.dev', password: 'Admin@2026' },
-};
+interface LoginForm { email: string; password: string; }
+interface SignupForm { fullName: string; email: string; password: string; confirmPassword: string; agreeTerms: boolean; }
 
 const platformStats = [
   { label: 'Active Users', value: '84,219', icon: Users },
@@ -54,7 +40,6 @@ const testimonials = [
   { name: 'Arjun Mehta', role: 'CS @ IIT Bombay', text: 'The live contest UI is unreal. Feels like a real competition.' },
 ];
 
-// Star field component
 function StarField() {
   const stars = Array.from({ length: 60 }, (_, i) => ({
     id: `star-${i}`,
@@ -65,21 +50,14 @@ function StarField() {
     delay: (i % 6) * 0.5,
     size: i % 3 === 0 ? 3 : 2,
   }));
-
   return (
     <div className="star-field">
       {stars.map((s) => (
         <div
           key={s.id}
           className="star"
-          style={{
-            top: s.top,
-            left: s.left,
-            width: s.size,
-            height: s.size,
-            '--opacity': s.opacity,
-            '--duration': `${s.duration}s`,
-            '--delay': `${s.delay}s`,
+          style={{ top: s.top, left: s.left, width: s.size, height: s.size,
+            '--opacity': s.opacity, '--duration': `${s.duration}s`, '--delay': `${s.delay}s`,
           } as React.CSSProperties}
         />
       ))}
@@ -87,523 +65,318 @@ function StarField() {
   );
 }
 
-// Credential copy row
-function CredentialRow({ label, value }: { label: string; value: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(value).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <div className="flex items-center justify-between gap-2 bg-muted/40 rounded-lg px-3 py-2 border border-border">
-      <div className="min-w-0">
-        <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
-        <p className="text-xs font-mono text-foreground truncate">{value}</p>
-      </div>
-      <button
-        onClick={handleCopy}
-        className="flex-shrink-0 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-        aria-label={`Copy ${label}`}
-      >
-        {copied ? <Check size={12} className="text-success" /> : <Copy size={12} />}
-      </button>
-    </div>
-  );
-}
-
 export default function AuthScreen() {
   const [mode, setMode] = useState<AuthMode>('login');
-  const [role, setRole] = useState<Role>('student');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showPwd, setShowPwd] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const loginForm = useForm<LoginForm>({
-    defaultValues: { email: '', password: '', rememberMe: false },
-  });
+  const router = useRouter();
 
-  const signupForm = useForm<SignupForm>({
-    defaultValues: { fullName: '', email: '', password: '', confirmPassword: '', agreeTerms: false },
-  });
+  const loginForm = useForm<LoginForm>({ defaultValues: { email: '', password: '' } });
+  const signupForm = useForm<SignupForm>({ defaultValues: { fullName: '', email: '', password: '', confirmPassword: '', agreeTerms: false } });
 
-  // Fill demo credentials
-  const fillDemo = (r: Role) => {
-    const creds = mockCredentials[r];
-    loginForm.setValue('email', creds.email);
-    loginForm.setValue('password', creds.password);
-    setRole(r);
-    toast.success(`Demo credentials filled for ${r}`);
+  /* ── Google OAuth ── */
+  const handleGoogleAuth = async () => {
+    try {
+      await signIn('google', { callbackUrl: '/user-dashboard' });
+    } catch (err: any) {
+      toast.error('Google authentication failed');
+    }
   };
 
-  const handleLogin = loginForm.handleSubmit(async (data) => {
+  /* ── Login ── */
+  const onLogin = loginForm.handleSubmit(async (data) => {
     setIsLoading(true);
-    // BACKEND: POST /api/auth/login { email, password, role }
-    await new Promise((r) => setTimeout(r, 1200));
 
-    const validStudent = data.email === mockCredentials.student.email && data.password === mockCredentials.student.password;
-    const validAdmin = data.email === mockCredentials.admin.email && data.password === mockCredentials.admin.password;
-
-    if (!validStudent && !validAdmin) {
-      loginForm.setError('email', {
-        message: 'Invalid credentials — use the demo accounts below to sign in',
+    try {
+      const result = await signIn('credentials', {
+        email: data.email,
+        password: data.password,
+        redirect: false,
       });
-      setIsLoading(false);
-      return;
-    }
 
-    toast.success('Welcome back to ByteArena!');
-    setIsLoading(false);
-    // BACKEND: redirect based on role from JWT
-    if (validAdmin) {
-      window.location.href = '/admin/dashboard';
-    } else {
-      window.location.href = '/user-dashboard';
+      if (result?.error) {
+        toast.error('Invalid email or password');
+      } else {
+        if (data.email === 'admin@bytearena.dev') {
+          toast.success('Admin login successful!');
+          router.push('/admin/dashboard');
+        } else {
+          toast.success('Welcome back to ByteArena!');
+          router.push('/user-dashboard');
+        }
+      }
+    } catch (err: any) {
+      toast.error('An error occurred during login');
+    } finally {
+      setIsLoading(false);
     }
   });
 
-  const handleSignup = signupForm.handleSubmit(async (data) => {
+  /* ── Signup ── */
+  const onSignup = signupForm.handleSubmit(async (data) => {
     if (data.password !== data.confirmPassword) {
       signupForm.setError('confirmPassword', { message: 'Passwords do not match' });
       return;
     }
     if (!data.agreeTerms) {
-      signupForm.setError('agreeTerms', { message: 'You must agree to the terms' });
+      toast.error('Please agree to the Terms of Service');
       return;
     }
     setIsLoading(true);
-    // BACKEND: POST /api/auth/register { fullName, email, password, role }
-    await new Promise((r) => setTimeout(r, 1400));
-    toast.success('Account created! Welcome to ByteArena.');
-    setIsLoading(false);
-    setMode('login');
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullName: data.fullName, email: data.email, password: data.password }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Registration failed');
+      }
+
+      toast.success('Account created successfully! Logging you in...');
+      
+      const result = await signIn('credentials', {
+        email: data.email,
+        password: data.password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        toast.error('Auto login failed. Please login manually.');
+        setMode('login');
+      } else {
+        router.push('/user-dashboard');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create account');
+    } finally {
+      setIsLoading(false);
+    }
   });
+
+  const loginDisabled = isLoading;
+  const signupDisabled = isLoading;
 
   return (
     <div className="min-h-screen flex bg-galaxy overflow-hidden">
       <ToastProvider />
 
-      {/* Left brand panel */}
-      <div className="hidden lg:flex flex-col flex-1 relative overflow-hidden bg-gradient-to-br from-[#0A0515] via-[#050508] to-[#020210]">
+      {/* ── Left brand panel ── */}
+      <div className="hidden lg:flex flex-col flex-1 relative overflow-hidden bg-gradient-to-br from-[#0A0515] via-[#050508] to-[#020210] border-r border-border/10">
         <StarField />
+        <motion.div animate={{ scale: [1,1.05,1], opacity:[0.3,0.5,0.3] }} transition={{ duration:5, repeat:Infinity, ease:'easeInOut' }}
+          className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-primary/20 blur-[100px] pointer-events-none" />
+        <motion.div animate={{ scale:[1,1.1,1], opacity:[0.2,0.4,0.2] }} transition={{ duration:6, repeat:Infinity, ease:'easeInOut', delay:2 }}
+          className="absolute bottom-1/3 right-1/4 w-64 h-64 rounded-full bg-accent/15 blur-[80px] pointer-events-none" />
 
-        {/* Glow orbs */}
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-1/3 right-1/4 w-64 h-64 rounded-full bg-accent/8 blur-3xl pointer-events-none" />
-
-        {/* Logo */}
         <div className="relative z-10 p-10">
-          <div className="flex items-center gap-3">
+          <motion.div initial={{ y:-20, opacity:0 }} animate={{ y:0, opacity:1 }} className="flex items-center gap-3">
             <AppLogo size={36} />
             <span className="font-bold text-xl text-foreground tracking-tight">ByteArena</span>
-          </div>
+          </motion.div>
         </div>
 
-        {/* Center content */}
         <div className="relative z-10 flex-1 flex flex-col justify-center px-12 pb-12">
           <div className="max-w-md">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-xs text-sky-300 font-medium mb-6">
-              <Zap size={11} />
-              Platform v2.6 — Now with AI Hints
-            </div>
+            <motion.div initial={{ opacity:0, x:-20 }} animate={{ opacity:1, x:0 }} transition={{ delay:0.1 }}>
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-xs text-primary font-medium mb-6">
+                <Zap size={12} className="animate-pulse" /> Platform v2.6 — Now with AI Hints
+              </div>
+              <h1 className="text-4xl xl:text-5xl font-display font-bold text-foreground leading-tight mb-4">
+                Compete. <span className="text-gradient-primary">Code.</span><br />Conquer.
+              </h1>
+              <p className="text-base text-muted-foreground leading-relaxed mb-8">
+                Join 84,000+ competitive programmers on the platform built for serious coders.
+                Real-time contests, deep analytics, and a battleground that never sleeps.
+              </p>
+            </motion.div>
 
-            <h1 className="text-4xl xl:text-5xl font-bold text-foreground leading-tight mb-4">
-              Compete.{' '}
-              <span className="text-gradient-primary">Code.</span>{' '}
-              Conquer.
-            </h1>
-
-            <p className="text-base text-muted-foreground leading-relaxed mb-8">
-              Join 84,000+ competitive programmers on the platform built for serious coders.
-              Real-time contests, deep analytics, and a battleground that never sleeps.
-            </p>
-
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-4 mb-10">
+            <motion.div initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.3 }} className="grid grid-cols-3 gap-4 mb-10">
               {platformStats.map((stat) => {
                 const Icon = stat.icon;
                 return (
-                  <div key={`stat-${stat.label}`} className="bg-card-elevated rounded-xl p-4 text-center">
+                  <div key={stat.label} className="bg-card-elevated rounded-xl p-4 text-center border border-border hover:border-primary/50 transition-colors">
                     <Icon size={16} className="text-primary mx-auto mb-2" />
-                    <p className="text-xl font-bold text-foreground metric-value">{stat.value}</p>
+                    <p className="text-xl font-bold text-foreground">{stat.value}</p>
                     <p className="text-xs text-muted-foreground">{stat.label}</p>
                   </div>
                 );
               })}
-            </div>
+            </motion.div>
 
-            {/* Testimonials */}
-            <div className="space-y-3">
+            <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:0.5 }} className="space-y-3">
               {testimonials.map((t) => (
-                <div key={`testimonial-${t.name}`} className="glass-light rounded-xl p-4">
-                  <div className="flex items-center gap-1 mb-2">
-                    {[1, 2, 3, 4, 5].map((s) => (
-                      <Star key={`star-t-${t.name}-${s}`} size={10} className="text-amber-400 fill-amber-400" />
-                    ))}
-                  </div>
-                  <p className="text-sm text-foreground/80 italic mb-2">"{t.text}"</p>
-                  <div>
-                    <p className="text-xs font-semibold text-foreground">{t.name}</p>
-                    <p className="text-xs text-muted-foreground">{t.role}</p>
-                  </div>
+                <div key={t.name} className="glass-light rounded-xl p-4 border border-border/50">
+                  <div className="flex gap-0.5 mb-2">{[1,2,3,4,5].map(s => <Star key={s} size={10} className="text-amber-400 fill-amber-400" />)}</div>
+                  <p className="text-sm text-foreground/80 italic mb-2">&quot;{t.text}&quot;</p>
+                  <p className="text-xs font-semibold text-foreground">{t.name}</p>
+                  <p className="text-xs text-muted-foreground">{t.role}</p>
                 </div>
               ))}
-            </div>
+            </motion.div>
           </div>
         </div>
-
-        {/* Bottom divider glow */}
-        <div className="absolute right-0 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-primary/30 to-transparent" />
       </div>
 
-      {/* Right form panel */}
-      <div className="w-full lg:w-[480px] xl:w-[520px] flex flex-col overflow-y-auto bg-background/95">
-        <div className="flex-1 flex flex-col justify-center px-8 sm:px-12 py-10">
+      {/* ── Right form panel ── */}
+      <div className="w-full lg:w-[500px] xl:w-[560px] flex flex-col justify-center overflow-y-auto bg-background relative">
+        <div className="absolute inset-0 bg-galaxy opacity-30 pointer-events-none" />
+        <div className="flex-1 flex flex-col justify-center px-6 sm:px-10 py-10 relative z-10 max-w-md w-full mx-auto">
 
-          {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
             <AppLogo size={28} />
             <span className="font-bold text-lg text-foreground">ByteArena</span>
           </div>
 
-          {/* Mode tabs */}
-          <div className="flex rounded-xl p-1 bg-muted border border-border mb-8">
-            {(['login', 'signup'] as AuthMode[]).map((m) => (
-              <button
-                key={`mode-${m}`}
-                onClick={() => setMode(m)}
-                className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 ${
-                  mode === m
-                    ? 'bg-primary text-white shadow-lg'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {m === 'login' ? 'Sign In' : 'Create Account'}
-              </button>
-            ))}
-          </div>
+          <div className="w-full glass border border-primary/20 rounded-2xl p-6 sm:p-8 shadow-soft relative overflow-hidden">
+            {/* decorative lightning */}
+            <div className="absolute -top-10 -right-10 text-primary/5 rotate-12 pointer-events-none">
+              <Zap size={140} fill="currentColor" />
+            </div>
 
-          {/* Role selector */}
-          <div className="flex gap-3 mb-6">
-            {(['student', 'admin'] as Role[]).map((r) => {
-              const Icon = r === 'student' ? User : Shield;
-              return (
-                <button
-                  key={`role-${r}`}
-                  onClick={() => setRole(r)}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border text-sm font-medium transition-all duration-200 ${
-                    role === r
-                      ? r === 'admin' ?'border-amber-500/50 bg-amber-500/10 text-amber-300' :'border-primary/50 bg-primary/10 text-sky-300' :'border-border bg-card text-muted-foreground hover:border-border/80 hover:text-foreground'
-                  }`}
-                >
-                  <Icon size={15} />
-                  {r === 'student' ? 'Student' : 'Admin'}
-                </button>
-              );
-            })}
-          </div>
+            <div className="text-center mb-6 relative z-10">
+              <h2 className="font-display text-2xl font-bold mb-1">
+                {mode === 'login' ? 'Welcome back' : 'Join the Arena'}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {mode === 'login' ? 'Sign in to access your dashboard.' : 'Create your free account.'}
+              </p>
+            </div>
 
-          {mode === 'login' ? (
-            /* ===== LOGIN FORM ===== */
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label htmlFor="login-email" className="block text-sm font-medium text-foreground mb-1.5">
-                  Email Address
-                </label>
-                <input
-                  id="login-email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@bytearena.dev"
-                  className="input-field w-full px-4 py-2.5 text-sm"
-                  {...loginForm.register('email', {
-                    required: 'Email is required',
-                    pattern: { value: /^[^@]+@[^@]+\.[^@]+$/, message: 'Enter a valid email' },
-                  })}
-                />
-                {loginForm.formState.errors.email && (
-                  <p className="mt-1.5 text-xs text-danger flex items-center gap-1">
-                    {loginForm.formState.errors.email.message}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label htmlFor="login-password" className="text-sm font-medium text-foreground">
-                    Password
-                  </label>
-                  <button type="button" className="text-xs text-primary hover:text-sky-300 transition-colors">
-                    Forgot password?
-                  </button>
-                </div>
-                <div className="relative">
-                  <input
-                    id="login-password"
-                    type={showPassword ? 'text' : 'password'}
-                    autoComplete="current-password"
-                    placeholder="Enter your password"
-                    className="input-field w-full px-4 py-2.5 text-sm pr-11"
-                    {...loginForm.register('password', {
-                      required: 'Password is required',
-                      minLength: { value: 6, message: 'Minimum 6 characters' },
-                    })}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+            {/* Tab switcher */}
+            <div className="flex p-1 bg-muted/50 rounded-xl mb-6 border border-border/50 relative z-10">
+                {(['login', 'signup'] as AuthMode[]).map((m) => (
+                  <button key={m} type="button" onClick={() => setMode(m)}
+                    className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all duration-300 ${
+                      mode === m ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                    }`}
                   >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {m === 'login' ? 'Sign In' : 'Create Account'}
                   </button>
+                ))}
+              </div>
+
+
+            {/* ── LOGIN ── */}
+            {mode === 'login' && (
+              <form onSubmit={onLogin} className="space-y-4 relative z-10">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-foreground mb-1.5">Email</label>
+                  <input type="email" placeholder="you@bytearena.dev"
+                    className="input-field w-full px-4 py-3 text-sm"
+                    {...loginForm.register('email', { required: 'Email is required' })}
+                  />
+                  {loginForm.formState.errors.email && <p className="mt-1 text-xs text-red-400">{loginForm.formState.errors.email.message}</p>}
                 </div>
-                {loginForm.formState.errors.password && (
-                  <p className="mt-1.5 text-xs text-danger">
-                    {loginForm.formState.errors.password.message}
-                  </p>
-                )}
-              </div>
 
-              <div className="flex items-center gap-2">
-                <input
-                  id="remember-me"
-                  type="checkbox"
-                  className="w-4 h-4 rounded border-border bg-input accent-primary"
-                  {...loginForm.register('rememberMe')}
-                />
-                <label htmlFor="remember-me" className="text-sm text-muted-foreground cursor-pointer">
-                  Remember me for 30 days
-                </label>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="btn-primary w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
-                style={{ minHeight: '48px' }}
-              >
-                {isLoading ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    Sign In to ByteArena
-                    <ArrowRight size={16} />
-                  </>
-                )}
-              </button>
-
-              {/* Social */}
-              <div className="relative flex items-center gap-3 my-2">
-                <div className="flex-1 h-px bg-border" />
-                <span className="text-xs text-muted-foreground">or continue with</span>
-                <div className="flex-1 h-px bg-border" />
-              </div>
-
-              <button
-                type="button"
-                className="btn-secondary w-full py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2"
-                onClick={() => toast.info('GitHub OAuth coming soon')}
-              >
-                <GithubIcon size={16} />
-                Continue with GitHub
-              </button>
-
-              {/* Demo credentials */}
-              <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4">
-                <p className="text-xs font-semibold text-sky-300 mb-3 flex items-center gap-1.5">
-                  <Zap size={11} />
-                  Demo Accounts — Click to autofill
-                </p>
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  {(['student', 'admin'] as Role[]).map((r) => (
-                    <button
-                      key={`demo-btn-${r}`}
-                      type="button"
-                      onClick={() => fillDemo(r)}
-                      className={`py-2 rounded-lg text-xs font-medium border transition-all duration-150 flex items-center justify-center gap-1.5 ${
-                        r === 'admin' ?'border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20' :'border-primary/30 bg-primary/10 text-sky-300 hover:bg-primary/20'
-                      }`}
-                    >
-                      {r === 'admin' ? <Shield size={10} /> : <User size={10} />}
-                      Use {r.charAt(0).toUpperCase() + r.slice(1)}
+                <div>
+                  <div className="flex justify-between mb-1.5">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-foreground">Password</label>
+                    <button type="button" className="text-xs text-primary hover:underline">Forgot?</button>
+                  </div>
+                  <div className="relative">
+                    <input type={showPwd ? 'text' : 'password'} placeholder="••••••••"
+                      className="input-field w-full px-4 py-3 text-sm pr-11"
+                      {...loginForm.register('password', { required: 'Password is required' })}
+                    />
+                    <button type="button" onClick={() => setShowPwd(!showPwd)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                      {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
-                  ))}
+                  </div>
+                  {loginForm.formState.errors.password && <p className="mt-1 text-xs text-red-400">{loginForm.formState.errors.password.message}</p>}
                 </div>
-                <div className="space-y-2">
-                  <CredentialRow label="Student Email" value={mockCredentials.student.email} />
-                  <CredentialRow label="Admin Email" value={mockCredentials.admin.email} />
-                  <CredentialRow label="Password (both)" value="[Role]@2026" />
+
+                <button type="submit" disabled={loginDisabled}
+                  className="btn-primary w-full py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 mt-2 disabled:opacity-60">
+                  {loginDisabled ? <Loader2 size={18} className="animate-spin" /> : <>Sign In <ArrowRight size={16} /></>}
+                </button>
+
+                <div className="flex items-center gap-3 my-4">
+                  <div className="flex-1 h-px bg-border" />
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">or</span>
+                  <div className="flex-1 h-px bg-border" />
                 </div>
-              </div>
-            </form>
-          ) : (
-            /* ===== SIGNUP FORM ===== */
-            <form onSubmit={handleSignup} className="space-y-4">
-              <div>
-                <label htmlFor="signup-name" className="block text-sm font-medium text-foreground mb-1.5">
-                  Full Name
-                </label>
-                <input
-                  id="signup-name"
-                  type="text"
-                  autoComplete="name"
-                  placeholder="Rahul Kumar"
-                  className="input-field w-full px-4 py-2.5 text-sm"
-                  {...signupForm.register('fullName', {
-                    required: 'Full name is required',
-                    minLength: { value: 2, message: 'Name too short' },
-                  })}
-                />
-                {signupForm.formState.errors.fullName && (
-                  <p className="mt-1.5 text-xs text-danger">{signupForm.formState.errors.fullName.message}</p>
-                )}
-              </div>
 
-              <div>
-                <label htmlFor="signup-email" className="block text-sm font-medium text-foreground mb-1.5">
-                  Email Address
-                </label>
-                <input
-                  id="signup-email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@college.edu"
-                  className="input-field w-full px-4 py-2.5 text-sm"
-                  {...signupForm.register('email', {
-                    required: 'Email is required',
-                    pattern: { value: /^[^@]+@[^@]+\.[^@]+$/, message: 'Enter a valid email' },
-                  })}
-                />
-                {signupForm.formState.errors.email && (
-                  <p className="mt-1.5 text-xs text-danger">{signupForm.formState.errors.email.message}</p>
-                )}
-              </div>
+                <button type="button" onClick={handleGoogleAuth}
+                  className="btn-secondary w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-3 border border-border hover:border-primary/50 transition-all">
+                  <GoogleIcon size={18} /> Continue with Google
+                </button>
+              </form>
+            )}
 
-              <div>
-                <label htmlFor="signup-password" className="block text-sm font-medium text-foreground mb-1.5">
-                  Password
-                </label>
-                <p className="text-xs text-muted-foreground mb-1.5">Min 8 characters, one uppercase, one number</p>
-                <div className="relative">
-                  <input
-                    id="signup-password"
-                    type={showPassword ? 'text' : 'password'}
-                    autoComplete="new-password"
-                    placeholder="Create a strong password"
-                    className="input-field w-full px-4 py-2.5 text-sm pr-11"
-                    {...signupForm.register('password', {
-                      required: 'Password is required',
-                      minLength: { value: 8, message: 'Minimum 8 characters' },
-                      pattern: {
-                        value: /(?=.*[A-Z])(?=.*[0-9])/,
-                        message: 'Must include uppercase and number',
-                      },
-                    })}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
+            {/* ── SIGNUP ── */}
+            {mode === 'signup' && (
+              <form onSubmit={onSignup} className="space-y-4 relative z-10">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-foreground mb-1.5">Full Name</label>
+                  <input type="text" placeholder="Alex Coder" className="input-field w-full px-4 py-3 text-sm"
+                    {...signupForm.register('fullName', { required: true })} />
                 </div>
-                {signupForm.formState.errors.password && (
-                  <p className="mt-1.5 text-xs text-danger">{signupForm.formState.errors.password.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="signup-confirm" className="block text-sm font-medium text-foreground mb-1.5">
-                  Confirm Password
-                </label>
-                <div className="relative">
-                  <input
-                    id="signup-confirm"
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    autoComplete="new-password"
-                    placeholder="Repeat your password"
-                    className="input-field w-full px-4 py-2.5 text-sm pr-11"
-                    {...signupForm.register('confirmPassword', { required: 'Please confirm your password' })}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    aria-label={showConfirmPassword ? 'Hide' : 'Show'}
-                  >
-                    {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-foreground mb-1.5">Email</label>
+                  <input type="email" placeholder="alex@college.edu" className="input-field w-full px-4 py-3 text-sm"
+                    {...signupForm.register('email', { required: true })} />
                 </div>
-                {signupForm.formState.errors.confirmPassword && (
-                  <p className="mt-1.5 text-xs text-danger">{signupForm.formState.errors.confirmPassword.message}</p>
-                )}
-              </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-foreground mb-1.5">Password</label>
+                  <div className="relative">
+                    <input type={showPwd ? 'text' : 'password'} placeholder="Strong password" className="input-field w-full px-4 py-3 text-sm pr-11"
+                      {...signupForm.register('password', { required: true, minLength: { value: 8, message: 'Min 8 characters' } })} />
+                    <button type="button" onClick={() => setShowPwd(!showPwd)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                      {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  {signupForm.formState.errors.password && <p className="mt-1 text-xs text-red-400">{signupForm.formState.errors.password.message}</p>}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-foreground mb-1.5">Confirm Password</label>
+                  <input type={showConfirm ? 'text' : 'password'} placeholder="Repeat password" className="input-field w-full px-4 py-3 text-sm"
+                    {...signupForm.register('confirmPassword', { required: true })} />
+                  {signupForm.formState.errors.confirmPassword && <p className="mt-1 text-xs text-red-400">{signupForm.formState.errors.confirmPassword.message}</p>}
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <input type="checkbox" id="terms" className="w-4 h-4 rounded border-border accent-primary"
+                    {...signupForm.register('agreeTerms')} />
+                  <label htmlFor="terms" className="text-xs text-muted-foreground cursor-pointer">
+                    I agree to the <span className="text-primary hover:underline">Terms of Service</span>
+                  </label>
+                </div>
 
-              <div className="flex items-start gap-2">
-                <input
-                  id="agree-terms"
-                  type="checkbox"
-                  className="w-4 h-4 mt-0.5 rounded border-border bg-input accent-primary"
-                  {...signupForm.register('agreeTerms')}
-                />
-                <label htmlFor="agree-terms" className="text-sm text-muted-foreground cursor-pointer leading-snug">
-                  I agree to the{' '}
-                  <span className="text-primary hover:text-sky-300 cursor-pointer transition-colors">Terms of Service</span>
-                  {' '}and{' '}
-                  <span className="text-primary hover:text-sky-300 cursor-pointer transition-colors">Privacy Policy</span>
-                </label>
-              </div>
-              {signupForm.formState.errors.agreeTerms && (
-                <p className="text-xs text-danger">{signupForm.formState.errors.agreeTerms.message}</p>
-              )}
+                <button type="submit" disabled={isLoading}
+                  className="btn-primary w-full py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 mt-2 disabled:opacity-60">
+                  {signupDisabled ? <Loader2 size={18} className="animate-spin" /> : <>Join the Arena <UserPlus size={16} /></>}
+                </button>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="btn-primary w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
-                style={{ minHeight: '48px' }}
-              >
-                {isLoading ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    Create Account
-                    <ChevronRight size={16} />
-                  </>
-                )}
+                <div className="flex items-center gap-3 my-4">
+                  <div className="flex-1 h-px bg-border" />
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">or</span>
+                  <div className="flex-1 h-px bg-border" />
+                </div>
+
+                <button type="button" onClick={handleGoogleAuth}
+                  className="btn-secondary w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-3 border border-border hover:border-primary/50 transition-all">
+                  <GoogleIcon size={18} /> Sign up with Google
+                </button>
+              </form>
+            )}
+
+
+          </div>
+
+
+            <p className="text-center text-xs text-muted-foreground mt-6">
+              {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
+              <button type="button" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
+                className="text-primary hover:underline font-medium">
+                {mode === 'login' ? 'Create one' : 'Sign in'}
               </button>
-
-              <div className="relative flex items-center gap-3">
-                <div className="flex-1 h-px bg-border" />
-                <span className="text-xs text-muted-foreground">or</span>
-                <div className="flex-1 h-px bg-border" />
-              </div>
-
-              <button
-                type="button"
-                className="btn-secondary w-full py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2"
-                onClick={() => toast.info('GitHub OAuth coming soon')}
-              >
-                <GithubIcon size={16} />
-                Sign up with GitHub
-              </button>
-            </form>
-          )}
-
-          <p className="text-center text-xs text-muted-foreground mt-6">
-            {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
-            <button
-              onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
-              className="text-primary hover:text-sky-300 font-medium transition-colors"
-            >
-              {mode === 'login' ? 'Create one' : 'Sign in'}
-            </button>
-          </p>
+            </p>
         </div>
       </div>
     </div>

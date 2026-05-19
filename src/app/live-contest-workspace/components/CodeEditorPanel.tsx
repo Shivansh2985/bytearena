@@ -39,8 +39,6 @@ export default function CodeEditorPanel({
   const [showSettings, setShowSettings] = useState(false);
   const [tabSize, setTabSize] = useState(4);
   const [wordWrap, setWordWrap] = useState(false);
-  const [cameraStream, setCameraStream] = useState<string | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(code).catch(() => {});
@@ -53,7 +51,7 @@ export default function CodeEditorPanel({
 
   // Extensions loaded dynamically to avoid SSR
   const getExtensions = () => {
-    const exts: unknown[] = [];
+    const exts: any[] = [];
     return exts;
   };
 
@@ -166,19 +164,7 @@ export default function CodeEditorPanel({
         </div>
       </div>
 
-      {/* Camera preview (proctoring) */}
-      {!cameraBlocked && (
-        <div className="absolute top-12 left-3 z-10 w-28 h-20 rounded-lg border border-border overflow-hidden shadow-xl">
-          <div className="w-full h-full bg-[#0A0A12] flex flex-col items-center justify-center gap-1">
-            <Video size={16} className="text-emerald-400" />
-            <span className="text-xs text-emerald-400 font-medium">Live</span>
-          </div>
-          <div className="absolute bottom-1 left-1 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-400 pulse-live" />
-            <span className="text-[9px] text-red-300">REC</span>
-          </div>
-        </div>
-      )}
+      {/* Camera preview removed from here (now in navbar) */}
 
       {/* Camera blocked warning */}
       {cameraBlocked && (

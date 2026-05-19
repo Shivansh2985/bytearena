@@ -34,6 +34,12 @@ export interface RunResult {
   memory?: string;
   testcase?: string;
   error?: string;
+  testcaseResults?: Array<{
+    input: string;
+    expectedOutput: string;
+    output: string;
+    passed: boolean;
+  }>;
 }
 
 const problems: Problem[] = [
@@ -212,182 +218,153 @@ int main() {
     ios_base::sync_with_stdio(false);
     cin.tie(NULL);
     
-    int n, m;
-    cin >> n >> m;
+    cout << "Hello World" << "\\n";
+    // Write your code here
     
-    vector<tuple<int,int,int>> edges(m);
-    for (auto& [w, u, v] : edges) {
-        cin >> u >> v >> w;
-    }
-    
-    // Sort edges by weight (Kruskal's algorithm)
-    sort(edges.begin(), edges.end());
-    
-    // Union-Find
-    vector<int> parent(n + 1), rank_(n + 1, 0);
-    iota(parent.begin(), parent.end(), 0);
-    
-    function<int(int)> find = [&](int x) {
-        return parent[x] == x ? x : parent[x] = find(parent[x]);
-    };
-    
-    long long mst = 0;
-    int edgesUsed = 0;
-    
-    for (auto [w, u, v] : edges) {
-        int pu = find(u), pv = find(v);
-        if (pu != pv) {
-            mst += w;
-            edgesUsed++;
-            if (rank_[pu] < rank_[pv]) swap(pu, pv);
-            parent[pv] = pu;
-            if (rank_[pu] == rank_[pv]) rank_[pu]++;
-        }
-    }
-    
-    cout << (edgesUsed == n - 1 ? mst : -1) << "\\n";
     return 0;
 }`,
   python: `import sys
-from collections import defaultdict
-
-input = sys.stdin.readline
-
-def find(parent, x):
-    if parent[x] != x:
-        parent[x] = find(parent, parent[x])
-    return parent[x]
-
-def union(parent, rank, x, y):
-    px, py = find(parent, x), find(parent, y)
-    if px == py:
-        return False
-    if rank[px] < rank[py]:
-        px, py = py, px
-    parent[py] = px
-    if rank[px] == rank[py]:
-        rank[px] += 1
-    return True
 
 def solve():
-    n, m = map(int, input().split())
-    edges = []
-    for _ in range(m):
-        u, v, w = map(int, input().split())
-        edges.append((w, u, v))
-    
-    edges.sort()
-    parent = list(range(n + 1))
-    rank = [0] * (n + 1)
-    
-    mst = 0
-    used = 0
-    for w, u, v in edges:
-        if union(parent, rank, u, v):
-            mst += w
-            used += 1
-    
-    print(mst if used == n - 1 else -1)
+    print("Hello World")
+    # Write your code here
+    pass
 
-solve()`,
+if __name__ == '__main__':
+    solve()`,
   java: `import java.util.*;
 import java.io.*;
 
 public class Solution {
-    static int[] parent, rank;
-    
-    static int find(int x) {
-        if (parent[x] != x) parent[x] = find(parent[x]);
-        return parent[x];
-    }
-    
-    static boolean union(int x, int y) {
-        int px = find(x), py = find(y);
-        if (px == py) return false;
-        if (rank[px] < rank[py]) { int t = px; px = py; py = t; }
-        parent[py] = px;
-        if (rank[px] == rank[py]) rank[px]++;
-        return true;
-    }
-    
     public static void main(String[] args) throws IOException {
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-        StringTokenizer st = new StringTokenizer(br.readLine());
-        int n = Integer.parseInt(st.nextToken());
-        int m = Integer.parseInt(st.nextToken());
         
-        int[][] edges = new int[m][3];
-        for (int i = 0; i < m; i++) {
-            st = new StringTokenizer(br.readLine());
-            edges[i][0] = Integer.parseInt(st.nextToken());
-            edges[i][1] = Integer.parseInt(st.nextToken());
-            edges[i][2] = Integer.parseInt(st.nextToken());
-        }
+        System.out.println("Hello World");
+        // Write your code here
         
-        Arrays.sort(edges, (a, b) -> a[0] - b[0]);
-        parent = new int[n + 1];
-        rank = new int[n + 1];
-        for (int i = 0; i <= n; i++) parent[i] = i;
-        
-        long mst = 0;
-        int used = 0;
-        for (int[] e : edges) {
-            if (union(e[1], e[2])) {
-                mst += e[0];
-                used++;
-            }
-        }
-        System.out.println(used == n - 1 ? mst : -1);
     }
 }`,
   javascript: `const readline = require('readline');
-const rl = readline.createInterface({ input: process.stdin });
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 const lines = [];
-rl.on('line', l => lines.push(l.trim()));
+
+rl.on('line', (line) => {
+    lines.push(line.trim());
+});
+
 rl.on('close', () => {
-    const [n, m] = lines[0].split(' ').map(Number);
-    const edges = [];
-    for (let i = 1; i <= m; i++) {
-        const [u, v, w] = lines[i].split(' ').map(Number);
-        edges.push([w, u, v]);
-    }
-    edges.sort((a, b) => a[0] - b[0]);
+    console.log("Hello World");
+    // Write your code here
     
-    const parent = Array.from({length: n+1}, (_, i) => i);
-    const rank = new Array(n+1).fill(0);
-    
-    function find(x) {
-        if (parent[x] !== x) parent[x] = find(parent[x]);
-        return parent[x];
-    }
-    
-    function union(x, y) {
-        let px = find(x), py = find(y);
-        if (px === py) return false;
-        if (rank[px] < rank[py]) [px, py] = [py, px];
-        parent[py] = px;
-        if (rank[px] === rank[py]) rank[px]++;
-        return true;
-    }
-    
-    let mst = 0, used = 0;
-    for (const [w, u, v] of edges) {
-        if (union(u, v)) { mst += w; used++; }
-    }
-    console.log(used === n - 1 ? mst : -1);
 });`,
 };
 
-export default function WorkspaceShell() {
+export default function WorkspaceShell({ contestId }: { contestId?: string }) {
+  const [permissionsGranted, setPermissionsGranted] = useState(false);
+  const [dynamicProblems, setDynamicProblems] = useState<Problem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+
+  useEffect(() => {
+    if (!contestId) {
+      setDynamicProblems(problems);
+      setLoading(false);
+      return;
+    }
+    fetch(`/api/contests/${contestId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.hasEnded) {
+          alert("You have already ended or completed this contest.");
+          window.location.href = '/user-dashboard';
+          return;
+        }
+        if (!data.error && data.questions) {
+          const mapped = data.questions.map((q: any, i: number) => ({
+            id: q.id,
+            index: i + 1,
+            title: q.title,
+            difficulty: q.difficulty.charAt(0).toUpperCase() + q.difficulty.slice(1).toLowerCase(),
+            points: q.points,
+            status: 'unattempted',
+            timeLimit: '2s',
+            memoryLimit: '256MB',
+            tags: [],
+            statement: q.problemStatement || '',
+            constraints: q.constraints ? q.constraints.split('\n') : [],
+            examples: q.testCases?.filter((tc: any) => !tc.isHidden).map((tc: any) => ({
+              input: tc.input,
+              output: tc.expectedOutput,
+              explanation: tc.explanation || ''
+            })) || [],
+            testCases: q.testCases || [],
+          }));
+          setDynamicProblems(mapped.length > 0 ? mapped : problems);
+        } else {
+          setDynamicProblems(problems);
+        }
+        setLoading(false);
+      })
+      .catch(() => {
+        setDynamicProblems(problems);
+        setLoading(false);
+      });
+  }, [contestId]);
+
+  const requestPermissions = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      setPermissionsGranted(true);
+      setMediaStream(stream);
+      
+      // Start taking snapshots
+      setInterval(() => {
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.play();
+        video.onplaying = () => {
+          const canvas = document.createElement('canvas');
+          // Scale down the image to a max width of 640px to reduce payload size
+          const scale = Math.min(640 / video.videoWidth, 1);
+          canvas.width = video.videoWidth * scale;
+          canvas.height = video.videoHeight * scale;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            // Compress JPEG aggressively to prevent upload timeouts (0.4 quality)
+            const imageBase64 = canvas.toDataURL('image/jpeg', 0.4);
+            fetch('/api/proctoring/snapshot', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ contestId, imageBase64 })
+            }).catch(console.error);
+          }
+        };
+      }, 5 * 60 * 1000); // Every 5 minutes
+
+    } catch (err) {
+      alert("Camera and Microphone permissions are required to start the contest!");
+    }
+  };
+
+  const currentProblemList = dynamicProblems.length > 0 ? dynamicProblems : problems;
+  
   const [currentProblem, setCurrentProblem] = useState(0);
   const [language, setLanguage] = useState<Language>('cpp');
-  const [code, setCode] = useState<Record<string, Record<Language, string>>>(() => {
-    const init: Record<string, Record<Language, string>> = {};
-    problems.forEach((p) => {
-      init[p.id] = { cpp: defaultCode.cpp, python: defaultCode.python, java: defaultCode.java, javascript: defaultCode.javascript };
-    });
-    return init;
-  });
+  const [code, setCode] = useState<Record<string, Record<Language, string>>>({});
+  
+  useEffect(() => {
+    if (currentProblemList.length > 0 && Object.keys(code).length === 0) {
+      const init: Record<string, Record<Language, string>> = {};
+      currentProblemList.forEach((p) => {
+        init[p.id] = { cpp: defaultCode.cpp, python: defaultCode.python, java: defaultCode.java, javascript: defaultCode.javascript };
+      });
+      setCode(init);
+      setProblemStatuses(Object.fromEntries(currentProblemList.map((p) => [p.id, 'unattempted'])));
+    }
+  }, [currentProblemList]);
+
   const [runResult, setRunResult] = useState<RunResult>({ status: null, output: '' });
   const [outputOpen, setOutputOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -397,9 +374,7 @@ export default function WorkspaceShell() {
   const [cameraBlocked, setCameraBlocked] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [myRank, setMyRank] = useState(342);
-  const [problemStatuses, setProblemStatuses] = useState<Record<string, ProblemStatus>>(
-    Object.fromEntries(problems.map((p) => [p.id, p.status]))
-  );
+  const [problemStatuses, setProblemStatuses] = useState<Record<string, ProblemStatus>>({});
 
   const isDraggingH = useRef(false);
   const isDraggingV = useRef(false);
@@ -414,15 +389,33 @@ export default function WorkspaceShell() {
 
   // Proctoring: simulate focus loss
   useEffect(() => {
-    const handleBlur = () => setProctoringWarning(true);
-    const handleFocus = () => setProctoringWarning(false);
+    const handleBlur = () => {
+      setProctoringWarning(true);
+      if (contestId) {
+        fetch('/api/proctoring/log', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contestId, eventType: 'blur', description: 'Tab focus lost — switched to another window' })
+        }).catch(console.error);
+      }
+    };
+    const handleFocus = () => {
+      setProctoringWarning(false);
+      if (contestId) {
+        fetch('/api/proctoring/log', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contestId, eventType: 'focus', description: 'Tab focus regained' })
+        }).catch(console.error);
+      }
+    };
     window.addEventListener('blur', handleBlur);
     window.addEventListener('focus', handleFocus);
     return () => {
       window.removeEventListener('blur', handleBlur);
       window.removeEventListener('focus', handleFocus);
     };
-  }, []);
+  }, [contestId]);
 
   const handleMouseMoveH = useCallback((e: MouseEvent) => {
     if (!isDraggingH.current || !containerRef.current) return;
@@ -468,57 +461,136 @@ export default function WorkspaceShell() {
   const handleRun = async () => {
     setRunResult({ status: 'running', output: '' });
     setOutputOpen(true);
-    // BACKEND: POST /api/judge/run { code, language, problemId, customInput }
-    await new Promise((r) => setTimeout(r, 1800));
-    const prob = problems[currentProblem];
-    setRunResult({
-      status: 'accepted',
-      output: prob.examples[0]?.output ?? '4',
-      expectedOutput: prob.examples[0]?.output ?? '4',
-      testcase: prob.examples[0]?.input ?? '',
-      time: '0.03s',
-      memory: '3.2 MB',
-    });
-  };
+    const prob = currentProblemList[currentProblem];
+    if (!prob) return;
 
-  const handleSubmit = async () => {
-    setRunResult({ status: 'running', output: '' });
-    setOutputOpen(true);
-    // BACKEND: POST /api/judge/submit { code, language, problemId, contestId }
-    await new Promise((r) => setTimeout(r, 2400));
-    const prob = problems[currentProblem];
-    const isCorrect = problemStatuses[prob.id] !== 'unattempted' || Math.random() > 0.3;
-    if (isCorrect) {
-      setRunResult({
-        status: 'accepted',
-        output: 'All 12 test cases passed',
-        time: '0.08s',
-        memory: '4.1 MB',
+    try {
+      const res = await fetch('/api/judge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: code[prob.id]?.[language] || '',
+          language,
+          problemId: prob.id,
+          action: 'run'
+        })
       });
-      setProblemStatuses((prev) => ({ ...prev, [prob.id]: 'answered' }));
-      setMyRank((r) => Math.max(1, r - Math.floor(Math.random() * 15 + 5)));
-    } else {
-      setRunResult({
-        status: 'wrong_answer',
-        output: 'Wrong Answer on test case 3',
-        expectedOutput: '12',
-        testcase: '5 7\n...',
-        time: '0.05s',
-        memory: '3.8 MB',
-      });
-      setProblemStatuses((prev) => ({ ...prev, [prob.id]: 'attempted' }));
+      const data = await res.json();
+      if (data.error) {
+        setRunResult({ status: 'runtime_error', output: data.error });
+      } else {
+        setRunResult(data);
+      }
+    } catch (err) {
+      setRunResult({ status: 'runtime_error', output: 'Failed to connect to judge' });
     }
   };
 
-  const currentCode = code[problems[currentProblem].id][language];
+  const handleRunCustom = async (customInput: string) => {
+    setRunResult({ status: 'running', output: '' });
+    setOutputOpen(true);
+    const prob = currentProblemList[currentProblem];
+    if (!prob) return;
+
+    try {
+      const res = await fetch('/api/judge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: currentCode,
+          language,
+          problemId: prob.id,
+          action: 'run_custom',
+          customInput
+        })
+      });
+      const data = await res.json();
+      if (data.error) {
+        setRunResult({ status: 'runtime_error', output: data.error });
+      } else {
+        setRunResult(data);
+      }
+    } catch (err) {
+      setRunResult({ status: 'runtime_error', output: 'Failed to connect to judge' });
+    }
+  };
+  const handleSubmit = async () => {
+    setRunResult({ status: 'running', output: '' });
+    setOutputOpen(true);
+    const prob = currentProblemList[currentProblem];
+    if (!prob) return;
+
+    try {
+      const res = await fetch('/api/judge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: code[prob.id]?.[language] || '',
+          language,
+          problemId: prob.id,
+          action: 'submit'
+        })
+      });
+      const data = await res.json();
+      if (data.error) {
+        setRunResult({ status: 'runtime_error', output: data.error });
+      } else {
+        setRunResult(data);
+        if (data.status === 'accepted') {
+          setProblemStatuses((prev) => ({ ...prev, [prob.id]: 'answered' }));
+          setMyRank((r) => Math.max(1, r - Math.floor(Math.random() * 15 + 5)));
+        } else {
+          setProblemStatuses((prev) => ({ ...prev, [prob.id]: 'attempted' }));
+        }
+      }
+    } catch (err) {
+      setRunResult({ status: 'runtime_error', output: 'Failed to connect to judge' });
+    }
+  };
+
+  if (loading || Object.keys(code).length === 0) {
+    return <div className="h-screen flex items-center justify-center bg-background text-foreground">Loading workspace...</div>;
+  }
+
+  if (!permissionsGranted) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background text-foreground">
+        <div className="bg-card-elevated border border-border rounded-xl p-8 max-w-md w-full text-center space-y-6">
+          <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-4">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg>
+          </div>
+          <h2 className="text-xl font-bold">Action Required</h2>
+          <p className="text-sm text-muted-foreground">To maintain the integrity of this contest, you must allow camera and microphone access. Your session will be proctored.</p>
+          <button onClick={requestPermissions} className="btn-primary w-full py-3 rounded-lg font-bold">
+            Allow Permissions & Start Contest
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const probId = currentProblemList[currentProblem]?.id;
+  const currentCode = probId ? (code[probId]?.[language] || defaultCode[language]) : '';
+  
   const setCurrentCode = (val: string) => {
+    if (!probId) return;
     setCode((prev) => ({
       ...prev,
-      [problems[currentProblem].id]: {
-        ...prev[problems[currentProblem].id],
+      [probId]: {
+        ...(prev[probId] || { cpp: defaultCode.cpp, python: defaultCode.python, java: defaultCode.java, javascript: defaultCode.javascript }),
         [language]: val,
       },
     }));
+  };
+
+  const handleEndContest = async () => {
+    if (!confirm('Are you sure you want to end the contest? You will not be able to return.')) return;
+    if (!contestId) {
+      window.location.href = '/user-dashboard';
+      return;
+    }
+    await fetch(`/api/contests/${contestId}/end`, { method: 'POST' });
+    window.location.href = '/user-dashboard';
   };
 
   return (
@@ -533,7 +605,7 @@ export default function WorkspaceShell() {
 
       {/* Top bar */}
       <ContestTopBar
-        problems={problems}
+        problems={currentProblemList}
         problemStatuses={problemStatuses}
         currentProblem={currentProblem}
         onSelectProblem={setCurrentProblem}
@@ -546,6 +618,9 @@ export default function WorkspaceShell() {
         saveStatus={saveStatus}
         myRank={myRank}
         runResult={runResult}
+        mediaStream={mediaStream}
+        cameraBlocked={cameraBlocked}
+        onEndContest={handleEndContest}
       />
 
       {/* Main workspace */}
@@ -556,10 +631,10 @@ export default function WorkspaceShell() {
           style={{ width: `${leftWidth}%` }}
         >
           <ProblemPanel
-            problem={problems[currentProblem]}
-            onNext={() => setCurrentProblem((p) => Math.min(problems.length - 1, p + 1))}
+            problem={currentProblemList[currentProblem]}
+            onNext={() => setCurrentProblem((p) => Math.min(currentProblemList.length - 1, p + 1))}
             onPrev={() => setCurrentProblem((p) => Math.max(0, p - 1))}
-            totalProblems={problems.length}
+            totalProblems={currentProblemList.length}
           />
         </div>
 
@@ -582,7 +657,7 @@ export default function WorkspaceShell() {
               code={currentCode}
               onChange={setCurrentCode}
               language={language}
-              problem={problems[currentProblem]}
+              problem={currentProblemList[currentProblem]}
               cameraBlocked={cameraBlocked}
               onToggleCamera={() => setCameraBlocked(!cameraBlocked)}
             />
@@ -604,7 +679,8 @@ export default function WorkspaceShell() {
               <OutputPanel
                 result={runResult}
                 onClose={() => setOutputOpen(false)}
-                problem={problems[currentProblem]}
+                problem={currentProblemList[currentProblem]}
+                onRunCustom={handleRunCustom}
               />
             </div>
           )}

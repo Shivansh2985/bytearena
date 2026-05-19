@@ -5,45 +5,18 @@ import { toast } from 'sonner';
 import Badge from '@/components/ui/Badge';
 import ToastProvider from '@/components/ui/Toast';
 
-// BACKEND: GET /api/contests?status=upcoming
-const upcomingContests = [
-  {
-    id: 'contest-up-1',
-    title: 'CodeStorm Championship #13',
-    difficulty: 'Hard' as const,
-    startTime: Date.now() + 2 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000,
-    duration: '3h',
-    participants: 2104,
-    maxParticipants: 5000,
-    tags: ['DP', 'Graphs', 'Math'],
-    registered: false,
-    prize: '₹50,000',
-  },
-  {
-    id: 'contest-up-2',
-    title: 'ByteBlitz Weekly #19',
-    difficulty: 'Medium' as const,
-    startTime: Date.now() + 5 * 24 * 60 * 60 * 1000,
-    duration: '2h',
-    participants: 892,
-    maxParticipants: 10000,
-    tags: ['Arrays', 'Strings', 'Binary Search'],
-    registered: true,
-    prize: null,
-  },
-  {
-    id: 'contest-up-3',
-    title: 'AlgoArena Pro League S2',
-    difficulty: 'Hard' as const,
-    startTime: Date.now() + 7 * 24 * 60 * 60 * 1000,
-    duration: '4h',
-    participants: 341,
-    maxParticipants: 1000,
-    tags: ['Advanced DP', 'Flows', 'Geometry'],
-    registered: false,
-    prize: '₹1,00,000',
-  },
-];
+interface Contest {
+  id: string;
+  title: string;
+  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  status: string;
+  startTime: number;
+  endTime: number;
+  participants: number;
+  totalQuestions: number;
+  tags: string[];
+  registered?: boolean;
+}
 
 function TimeToStart({ startTime }: { startTime: number }) {
   const [label, setLabel] = useState('');
@@ -68,8 +41,24 @@ function TimeToStart({ startTime }: { startTime: number }) {
 }
 
 export default function UpcomingContests() {
-  const [bookmarks, setBookmarks] = useState<Set<string>>(new Set(['contest-up-2']));
-  const [registered, setRegistered] = useState<Set<string>>(new Set(['contest-up-2']));
+  const [contests, setContests] = useState<Contest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [bookmarks, setBookmarks] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    fetch('/api/contests?status=UPCOMING')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.error) {
+          setContests(data);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch upcoming contests', err);
+        setLoading(false);
+      });
+  }, []);
 
   const toggleBookmark = (id: string) => {
     setBookmarks((prev) => {
@@ -81,11 +70,10 @@ export default function UpcomingContests() {
   };
 
   const handleRegister = (id: string, title: string) => {
-    setRegistered((prev) => {
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
+    // In a real app, this would call a POST API endpoint to register
+    setContests((prev) => 
+      prev.map(c => c.id === id ? { ...c, registered: true, participants: c.participants + 1 } : c)
+    );
     toast.success(`Registered for ${title}!`);
   };
 
@@ -101,91 +89,101 @@ export default function UpcomingContests() {
       </div>
 
       <div className="space-y-3">
-        {upcomingContests.map((c) => {
-          const isRegistered = registered.has(c.id);
-          const isBookmarked = bookmarks.has(c.id);
-          const fillPct = Math.round((c.participants / c.maxParticipants) * 100);
+        {loading ? (
+          <div className="p-4 border border-border rounded-xl animate-pulse space-y-3">
+            <div className="h-4 bg-muted rounded w-3/4"></div>
+            <div className="h-4 bg-muted rounded w-1/2"></div>
+            <div className="h-8 bg-muted rounded w-full mt-2"></div>
+          </div>
+        ) : contests.length === 0 ? (
+          <div className="text-center py-6 text-muted-foreground text-sm">
+            No upcoming contests at the moment.
+          </div>
+        ) : (
+          contests.map((c) => {
+            const isRegistered = c.registered;
+            const isBookmarked = bookmarks.has(c.id);
+            const durationMs = c.endTime - c.startTime;
+            const durationH = Math.round(durationMs / 3600000);
+            const maxParticipants = 10000;
+            const fillPct = Math.round((c.participants / maxParticipants) * 100);
 
-          return (
-            <div key={c.id} className="contest-card p-4">
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <Badge variant="upcoming" dot>Upcoming</Badge>
-                    <Badge variant={c.difficulty.toLowerCase() as 'easy' | 'medium' | 'hard'}>
-                      {c.difficulty}
-                    </Badge>
-                    {c.prize && (
-                      <span className="text-xs bg-amber-500/10 text-amber-300 border border-amber-500/20 rounded-full px-2 py-0.5 font-medium">
-                        🏆 {c.prize}
-                      </span>
-                    )}
+            return (
+              <div key={c.id} className="contest-card p-4">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <Badge variant="upcoming" dot>Upcoming</Badge>
+                      <Badge variant={c.difficulty.toLowerCase() as 'easy' | 'medium' | 'hard'}>
+                        {c.difficulty}
+                      </Badge>
+                    </div>
+                    <h3 className="text-sm font-semibold text-foreground">{c.title}</h3>
                   </div>
-                  <h3 className="text-sm font-semibold text-foreground">{c.title}</h3>
-                </div>
-                <button
-                  onClick={() => toggleBookmark(c.id)}
-                  className="flex-shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
-                  aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark contest'}
-                >
-                  {isBookmarked
-                    ? <BookmarkCheck size={14} className="text-primary" />
-                    : <Bookmark size={14} />
-                  }
-                </button>
-              </div>
-
-              <div className="flex items-center gap-4 mb-3 flex-wrap">
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock size={11} />
-                  <TimeToStart startTime={c.startTime} />
-                </div>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  Duration: <span className="text-foreground font-medium ml-1">{c.duration}</span>
-                </div>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Users size={11} />
-                  <span>{c.participants.toLocaleString()}</span>
-                </div>
-              </div>
-
-              {/* Fill bar */}
-              <div className="mb-3">
-                <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                  <span>Registrations</span>
-                  <span className="metric-value">{c.participants.toLocaleString()} / {c.maxParticipants.toLocaleString()}</span>
-                </div>
-                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-accent to-primary rounded-full transition-all duration-700"
-                    style={{ width: `${fillPct}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="flex gap-1 flex-1 flex-wrap">
-                  {c.tags.slice(0, 2).map((tag) => (
-                    <span key={`utag-${c.id}-${tag}`} className="problem-tag">{tag}</span>
-                  ))}
-                </div>
-                {isRegistered ? (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-success/10 border border-success/30 text-xs text-emerald-300 font-medium">
-                    <Bell size={11} />
-                    Registered
-                  </div>
-                ) : (
                   <button
-                    onClick={() => handleRegister(c.id, c.title)}
-                    className="btn-primary px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 active:scale-95"
+                    onClick={() => toggleBookmark(c.id)}
+                    className="flex-shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+                    aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark contest'}
                   >
-                    Register
+                    {isBookmarked
+                      ? <BookmarkCheck size={14} className="text-primary" />
+                      : <Bookmark size={14} />
+                    }
                   </button>
-                )}
+                </div>
+
+                <div className="flex items-center gap-4 mb-3 flex-wrap">
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Clock size={11} />
+                    <TimeToStart startTime={c.startTime} />
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    Duration: <span className="text-foreground font-medium ml-1">{durationH}h</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Users size={11} />
+                    <span>{c.participants.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Fill bar */}
+                <div className="mb-3">
+                  <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                    <span>Registrations</span>
+                    <span className="metric-value">{c.participants.toLocaleString()} / {maxParticipants.toLocaleString()}</span>
+                  </div>
+                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-accent to-primary rounded-full transition-all duration-700"
+                      style={{ width: `${fillPct}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1 flex-1 flex-wrap">
+                    {c.tags.slice(0, 2).map((tag) => (
+                      <span key={`utag-${c.id}-${tag}`} className="problem-tag">{tag}</span>
+                    ))}
+                  </div>
+                  {isRegistered ? (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-success/10 border border-success/30 text-xs text-emerald-300 font-medium">
+                      <Bell size={11} />
+                      Registered
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleRegister(c.id, c.title)}
+                      className="btn-primary px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 active:scale-95"
+                    >
+                      Register
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
     </div>
   );

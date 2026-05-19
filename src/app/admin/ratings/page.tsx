@@ -14,26 +14,58 @@ interface UserRating {
   lastContest: string;
 }
 
-const users: UserRating[] = [
-  { id: 'u1', name: 'Arjun Mehta', avatar: 'AM', currentRating: 3210, previousRating: 3165, tier: 'Grandmaster', contests: 142, lastContest: 'ByteBlitz #18' },
-  { id: 'u2', name: 'Priya Sharma', avatar: 'PS', currentRating: 3180, previousRating: 3192, tier: 'Grandmaster', contests: 138, lastContest: 'ByteBlitz #18' },
-  { id: 'u3', name: 'Rahul Kumar', avatar: 'RK', currentRating: 2341, previousRating: 2254, tier: 'Expert', contests: 94, lastContest: 'ByteBlitz #18' },
-  { id: 'u4', name: 'Sneha Rao', avatar: 'SR', currentRating: 2980, previousRating: 2980, tier: 'Master', contests: 115, lastContest: 'AlgoArena #5' },
-  { id: 'u5', name: 'Vikram Singh', avatar: 'VS', currentRating: 2890, previousRating: 2856, tier: 'Master', contests: 108, lastContest: 'ByteBlitz #17' },
-];
-
 const tierColors: Record<string, string> = {
   Grandmaster: 'text-red-400',
   Master: 'text-amber-400',
   Expert: 'text-sky-400',
   Specialist: 'text-cyan-400',
   Pupil: 'text-emerald-400',
+  Beginner: 'text-slate-400',
 };
 
 export default function AdminRatingsPage() {
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [users, setUsers] = useState<UserRating[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  React.useEffect(() => {
+    fetch('/api/admin?action=users')
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error && Array.isArray(data)) {
+          const mapped = data.map((u: any) => {
+            const displayName = u.name || (u.firstName ? `${u.firstName} ${u.lastName || ''}` : '') || 'Unknown';
+            const initials = displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'US';
+            const rating = u.rating ?? 1200;
+            let tier = 'Beginner';
+            if (rating >= 2400) tier = 'Grandmaster';
+            else if (rating >= 2100) tier = 'Master';
+            else if (rating >= 1900) tier = 'Expert';
+            else if (rating >= 1600) tier = 'Specialist';
+            else if (rating >= 1400) tier = 'Pupil';
+
+            return {
+              id: u.id,
+              name: displayName,
+              avatar: initials,
+              currentRating: rating,
+              previousRating: rating, // mock
+              tier,
+              contests: 0,
+              lastContest: 'None'
+            };
+          });
+          setUsers(mapped);
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to fetch ratings', err);
+        setLoading(false);
+      });
+  }, []);
 
   const filtered = users.filter((u) =>
     u.name.toLowerCase().includes(search.toLowerCase())
@@ -42,6 +74,12 @@ export default function AdminRatingsPage() {
   const startEdit = (user: UserRating) => {
     setEditingId(user.id);
     setEditValue(user.currentRating.toString());
+  };
+
+  const handleSave = async (userId: string) => {
+    // In a real app, send a POST request to update the user's rating in DB
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, currentRating: parseInt(editValue, 10) || u.currentRating } : u));
+    setEditingId(null);
   };
 
   return (
@@ -133,7 +171,7 @@ export default function AdminRatingsPage() {
                     {isEditing ? (
                       <>
                         <button
-                          onClick={() => setEditingId(null)}
+                          onClick={() => handleSave(user.id)}
                           className="p-1.5 rounded-lg text-emerald-400 hover:bg-emerald-500/10 transition-colors"
                           title="Save"
                         >

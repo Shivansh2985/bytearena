@@ -17,19 +17,43 @@ interface Contest {
   createdBy: string;
 }
 
-const contests: Contest[] = [
-  { id: 'c1', title: 'ByteBlitz Weekly #18', status: 'live', difficulty: 'Medium', startTime: 'Today 10:00 AM', duration: '3h', participants: 3842, questions: 5, createdBy: 'Admin' },
-  { id: 'c2', title: 'AlgoArena Qualifier #6', status: 'live', difficulty: 'Hard', startTime: 'Today 11:30 AM', duration: '2.5h', participants: 1204, questions: 4, createdBy: 'Admin' },
-  { id: 'c3', title: 'CodeStorm Sprint #4', status: 'upcoming', difficulty: 'Easy', startTime: 'Tomorrow 9:00 AM', duration: '2h', participants: 0, questions: 6, createdBy: 'Admin' },
-  { id: 'c4', title: 'ByteBlitz Weekly #19', status: 'upcoming', difficulty: 'Medium', startTime: 'Jun 1, 10:00 AM', duration: '3h', participants: 0, questions: 5, createdBy: 'Admin' },
-  { id: 'c5', title: 'ICPC Practice Round', status: 'draft', difficulty: 'Hard', startTime: 'Not scheduled', duration: '5h', participants: 0, questions: 8, createdBy: 'Admin' },
-  { id: 'c6', title: 'ByteBlitz Weekly #17', status: 'completed', difficulty: 'Medium', startTime: 'May 12, 10:00 AM', duration: '3h', participants: 3200, questions: 5, createdBy: 'Admin' },
-  { id: 'c7', title: 'AlgoArena Qualifier #5', status: 'completed', difficulty: 'Hard', startTime: 'May 5, 11:00 AM', duration: '2.5h', participants: 1800, questions: 4, createdBy: 'Admin' },
-];
-
 export default function AdminContestsPage() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<string>('all');
+  const [contests, setContests] = useState<Contest[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  React.useEffect(() => {
+    fetch('/api/contests')
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error && Array.isArray(data)) {
+          const mapped = data.map((c: any) => {
+            const start = new Date(c.startTime);
+            const end = new Date(c.endTime);
+            const durationMs = end.getTime() - start.getTime();
+            const durationH = Math.round(durationMs / 3600000);
+            return {
+              id: c.id,
+              title: c.title,
+              status: c.status.toLowerCase() as 'live' | 'upcoming' | 'completed' | 'draft',
+              difficulty: c.difficulty.charAt(0).toUpperCase() + c.difficulty.slice(1).toLowerCase() as any,
+              startTime: start.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }),
+              duration: `${durationH}h`,
+              participants: c.participants || 0,
+              questions: c.totalQuestions || 0,
+              createdBy: 'Admin'
+            };
+          });
+          setContests(mapped);
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to fetch contests', err);
+        setLoading(false);
+      });
+  }, []);
 
   const filtered = contests.filter((c) => {
     const matchSearch = c.title.toLowerCase().includes(search.toLowerCase());
@@ -141,13 +165,11 @@ export default function AdminContestsPage() {
                   <span className="text-sm text-muted-foreground">{c.questions}</span>
                 </div>
                 <div className="col-span-2 flex items-center justify-end gap-1.5">
-                  {c.status === 'live' && (
-                    <Link href="/admin/proctoring">
-                      <button className="p-1.5 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors" title="Monitor live">
-                        <Eye size={14} />
-                      </button>
-                    </Link>
-                  )}
+                  <Link href={`/admin/contests/${c.id}`}>
+                    <button className="p-1.5 rounded-lg text-muted-foreground hover:text-sky-400 hover:bg-sky-500/10 transition-colors" title="View details & submissions">
+                      <Eye size={14} />
+                    </button>
+                  </Link>
                   <button className="p-1.5 rounded-lg text-muted-foreground hover:text-sky-400 hover:bg-sky-500/10 transition-colors" title="Edit">
                     <Edit2 size={14} />
                   </button>

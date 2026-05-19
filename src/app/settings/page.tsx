@@ -2,14 +2,72 @@
 import React, { useState } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Settings, Bell, Shield, Palette, User, Eye, EyeOff, Save, Moon, Sun } from 'lucide-react';
+import { useTheme } from 'next-themes';
 
 export default function SettingsPage() {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
   const [notifications, setNotifications] = useState({
     contestStart: true, contestEnd: true, rankChange: false, newBadge: true, weeklyDigest: true,
   });
   const [privacy, setPrivacy] = useState({ showProfile: true, showRating: true, showSubmissions: false });
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [showCurrentPwd, setShowCurrentPwd] = useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const [user, setUser] = useState<any>(null);
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    username: '',
+    bio: '',
+  });
+  const [loading, setLoading] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+  React.useEffect(() => {
+    fetch('/api/users/me')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.error) {
+          setUser(data);
+          const nameParts = (data.name || '').split(' ');
+          setFormData({
+            firstName: data.firstName || nameParts[0] || '',
+            lastName: data.lastName || nameParts.slice(1).join(' ') || '',
+            username: data.username || data.email?.split('@')[0] || '',
+            bio: data.bio || '',
+          });
+        }
+      })
+      .catch((err) => console.error('Failed to fetch settings user data:', err));
+  }, []);
+
+  const handleSave = async () => {
+    setLoading(true);
+    setSaveStatus('idle');
+    try {
+      const res = await fetch('/api/users/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      if (!data.error) {
+        setUser(data);
+        setSaveStatus('success');
+      } else {
+        setSaveStatus('error');
+      }
+    } catch (err) {
+      console.error(err);
+      setSaveStatus('error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const Toggle = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
     <button
@@ -41,34 +99,68 @@ export default function SettingsPage() {
             Profile Information
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {[
-              { label: 'Full Name', value: 'Rahul Kumar', type: 'text' },
-              { label: 'Username', value: 'rahul.kumar', type: 'text' },
-              { label: 'Email', value: 'rahul.kumar@bytearena.dev', type: 'email' },
-              { label: 'College / Organization', value: 'IIT Delhi', type: 'text' },
-            ].map((field) => (
-              <div key={field.label}>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">{field.label}</label>
-                <input
-                  type={field.type}
-                  defaultValue={field.value}
-                  className="input-field w-full px-3 py-2.5 text-sm"
-                />
-              </div>
-            ))}
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">First Name</label>
+              <input
+                type="text"
+                value={formData.firstName}
+                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                className="input-field w-full px-3 py-2.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Last Name</label>
+              <input
+                type="text"
+                value={formData.lastName}
+                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                className="input-field w-full px-3 py-2.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Username</label>
+              <input
+                type="text"
+                value={formData.username}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                className="input-field w-full px-3 py-2.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Email</label>
+              <input
+                type="email"
+                value={user?.email || ''}
+                disabled
+                className="input-field w-full px-3 py-2.5 text-sm opacity-60 cursor-not-allowed"
+              />
+            </div>
             <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-muted-foreground mb-1.5">Bio</label>
               <textarea
-                defaultValue="Competitive programmer & full-stack developer. 3× ICPC Regionalist."
+                value={formData.bio}
+                onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                 rows={3}
                 className="input-field w-full px-3 py-2.5 text-sm resize-none"
               />
             </div>
           </div>
-          <button className="mt-4 btn-primary px-5 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2">
-            <Save size={14} />
-            Save Changes
-          </button>
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              onClick={handleSave}
+              disabled={loading}
+              className="btn-primary px-5 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 disabled:opacity-50"
+            >
+              <Save size={14} />
+              {loading ? 'Saving...' : 'Save Changes'}
+            </button>
+            {saveStatus === 'success' && (
+              <span className="text-xs text-emerald-400 font-medium">Changes saved successfully!</span>
+            )}
+            {saveStatus === 'error' && (
+              <span className="text-xs text-red-400 font-medium">Failed to save changes.</span>
+            )}
+          </div>
         </div>
 
         {/* Password */}
@@ -174,12 +266,12 @@ export default function SettingsPage() {
                 key={t}
                 onClick={() => setTheme(t)}
                 className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-medium transition-all ${
-                  theme === t
+                  (mounted ? theme : 'dark') === t
                     ? 'border-primary bg-primary/10 text-sky-300' :'border-border text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {t === 'dark' ? <Moon size={14} /> : <Sun size={14} />}
-                {t === 'dark' ? 'Dark Mode' : 'Light Mode'}
+                {t === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
+                <span className="capitalize">{t} Mode</span>
               </button>
             ))}
           </div>

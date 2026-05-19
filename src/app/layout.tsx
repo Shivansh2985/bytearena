@@ -1,6 +1,8 @@
 import React from 'react';
 import type { Metadata, Viewport } from 'next';
+import { SessionProvider } from 'next-auth/react';
 import { Geist } from 'next/font/google';
+import { ThemeProvider } from '@/components/ThemeProvider';
 import '../styles/tailwind.css';
 
 const geist = Geist({
@@ -28,11 +30,14 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={geist.variable}>
-      <body className={geist.className}>{children}
-
-        <script type="module" async src="https://static.rocket.new/rocket-web.js?_cfg=https%3A%2F%2Fbytearena9353back.builtwithrocket.new&_be=https%3A%2F%2Fappanalytics.rocket.new&_v=0.1.18" />
-        <script type="module" defer src="https://static.rocket.new/rocket-shot.js?v=0.0.2" /></body>
+    <html lang="en" className={geist.variable} suppressHydrationWarning>
+      <body className={`${geist.className} bg-background text-foreground antialiased min-h-screen`} suppressHydrationWarning>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
+          <SessionProvider>
+            {children}
+          </SessionProvider>
+        </ThemeProvider>
+      </body>
     </html>
   );
 }

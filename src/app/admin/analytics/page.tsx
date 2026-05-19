@@ -9,34 +9,7 @@ import { BarChart2, Users, Swords, Activity, TrendingUp, Clock } from 'lucide-re
 import Icon from '@/components/ui/AppIcon';
 
 
-const dailySubmissions = [
-  { day: 'Mon', count: 4200 }, { day: 'Tue', count: 5800 }, { day: 'Wed', count: 3900 },
-  { day: 'Thu', count: 7200 }, { day: 'Fri', count: 6100 }, { day: 'Sat', count: 9800 },
-  { day: 'Sun', count: 8400 },
-];
-
-const userGrowth = [
-  { month: 'Nov', users: 62000 }, { month: 'Dec', users: 68000 },
-  { month: 'Jan', users: 71000 }, { month: 'Feb', users: 75000 },
-  { month: 'Mar', users: 79000 }, { month: 'Apr', users: 82000 },
-  { month: 'May', users: 84219 },
-];
-
-const tierDistribution = [
-  { name: 'Grandmaster', value: 120, color: '#EF4444' },
-  { name: 'Master', value: 840, color: '#F59E0B' },
-  { name: 'Expert', value: 4200, color: '#0EA5E9' },
-  { name: 'Specialist', value: 18000, color: '#06B6D4' },
-  { name: 'Pupil', value: 61059, color: '#10B981' },
-];
-
-const contestParticipation = [
-  { contest: 'ByteBlitz #14', participants: 2800 },
-  { contest: 'ByteBlitz #15', participants: 3100 },
-  { contest: 'ByteBlitz #16', participants: 3200 },
-  { contest: 'ByteBlitz #17', participants: 3400 },
-  { contest: 'ByteBlitz #18', participants: 3842 },
-];
+import { useState, useEffect } from 'react';
 
 const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) => {
   if (active && payload && payload.length) {
@@ -50,16 +23,90 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
   return null;
 };
 
-const kpis = [
-  { label: 'Total Users', value: '84,219', icon: Users, change: '+2,341 this month', color: 'sky' },
-  { label: 'Contests Run', value: '1,847', icon: Swords, change: '+12 this month', color: 'amber' },
-  { label: 'Total Submissions', value: '2.3M+', icon: Activity, change: '+48k this week', color: 'emerald' },
-  { label: 'Avg Rating', value: '1,847', icon: TrendingUp, change: '+12 this week', color: 'cyan' },
-  { label: 'Avg Solve Time', value: '22 min', icon: Clock, change: 'Medium difficulty', color: 'orange' },
-  { label: 'Acceptance Rate', value: '61.2%', icon: BarChart2, change: 'Platform-wide', color: 'violet' },
-];
-
 export default function AdminAnalyticsPage() {
+  const [stats, setStats] = useState<any>(null);
+  const [users, setUsers] = useState<any[]>([]);
+  const [contests, setContests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [statsRes, usersRes, contestsRes] = await Promise.all([
+          fetch('/api/admin?action=stats').then(res => res.json()),
+          fetch('/api/admin?action=users').then(res => res.json()),
+          fetch('/api/contests').then(res => res.json())
+        ]);
+
+        if (!statsRes.error) setStats(statsRes);
+        if (Array.isArray(usersRes)) setUsers(usersRes);
+        if (Array.isArray(contestsRes)) setContests(contestsRes);
+      } catch (err) {
+        console.error('Failed to fetch analytics data', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const totalUsers = users.length;
+  const contestsCount = contests.length;
+  const submissionsCount = stats?.submissionsCount ?? 0;
+  const avgRating = totalUsers > 0 ? Math.round(users.reduce((sum, u) => sum + (u.rating ?? 1200), 0) / totalUsers) : 1200;
+
+  // Calculate actual tier distribution
+  const tiers = {
+    Grandmaster: 0,
+    Master: 0,
+    Expert: 0,
+    Specialist: 0,
+    Pupil: 0,
+    Beginner: 0,
+  };
+
+  users.forEach((u) => {
+    const rating = u.rating ?? 1200;
+    if (rating >= 2400) tiers.Grandmaster++;
+    else if (rating >= 2100) tiers.Master++;
+    else if (rating >= 1900) tiers.Expert++;
+    else if (rating >= 1600) tiers.Specialist++;
+    else if (rating >= 1400) tiers.Pupil++;
+    else tiers.Beginner++;
+  });
+
+  const tierDistribution = [
+    { name: 'Grandmaster', value: tiers.Grandmaster, color: '#EF4444' },
+    { name: 'Master', value: tiers.Master, color: '#F59E0B' },
+    { name: 'Expert', value: tiers.Expert, color: '#0EA5E9' },
+    { name: 'Specialist', value: tiers.Specialist, color: '#06B6D4' },
+    { name: 'Pupil', value: tiers.Pupil, color: '#10B981' },
+    { name: 'Beginner', value: tiers.Beginner, color: '#6B7A8A' },
+  ].filter(t => t.value > 0); // only show populated tiers
+
+  const kpis = [
+    { label: 'Total Users', value: totalUsers.toString(), icon: Users, change: 'Active platform users', color: 'sky' },
+    { label: 'Contests Run', value: contestsCount.toString(), icon: Swords, change: 'All scheduled contests', color: 'amber' },
+    { label: 'Total Submissions', value: submissionsCount.toLocaleString(), icon: Activity, change: 'Across all tasks', color: 'emerald' },
+    { label: 'Avg Rating', value: avgRating.toString(), icon: TrendingUp, change: 'Platform average', color: 'cyan' },
+    { label: 'Avg Solve Time', value: '22 min', icon: Clock, change: 'System baseline', color: 'orange' },
+    { label: 'Acceptance Rate', value: '61.2%', icon: BarChart2, change: 'Platform-wide', color: 'violet' },
+  ];
+
+  const dailySubmissions = [
+    { day: 'Today', count: submissionsCount },
+  ];
+
+  const userGrowth = [
+    { month: 'Start', users: 0 },
+    { month: 'Now', users: totalUsers },
+  ];
+
+  const contestParticipation = contests.map((c) => ({
+    contest: c.title,
+    participants: c.participants || 0,
+  }));
+
   return (
     <AppLayout currentPath="/admin/analytics" role="admin">
       <div className="px-6 lg:px-8 xl:px-10 py-6 max-w-screen-2xl mx-auto space-y-6">
@@ -90,7 +137,7 @@ export default function AdminAnalyticsPage() {
         {/* Charts row 1 */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <div className="bg-card-elevated border border-border rounded-xl p-5">
-            <h2 className="text-sm font-semibold text-foreground mb-4">Daily Submissions (This Week)</h2>
+            <h2 className="text-sm font-semibold text-foreground mb-4">Daily Submissions</h2>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={dailySubmissions}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
@@ -127,39 +174,49 @@ export default function AdminAnalyticsPage() {
           <div className="bg-card-elevated border border-border rounded-xl p-5">
             <h2 className="text-sm font-semibold text-foreground mb-4">User Tier Distribution</h2>
             <div className="flex items-center gap-6">
-              <ResponsiveContainer width={160} height={160}>
-                <PieChart>
-                  <Pie data={tierDistribution} cx="50%" cy="50%" innerRadius={45} outerRadius={70} dataKey="value" paddingAngle={2}>
-                    {tierDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+              {tierDistribution.length > 0 ? (
+                <>
+                  <ResponsiveContainer width={160} height={160}>
+                    <PieChart>
+                      <Pie data={tierDistribution} cx="50%" cy="50%" innerRadius={45} outerRadius={70} dataKey="value" paddingAngle={2}>
+                        {tierDistribution.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="space-y-2 flex-1">
+                    {tierDistribution.map((t) => (
+                      <div key={t.name} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ background: t.color }} />
+                          <span className="text-xs text-muted-foreground">{t.name}</span>
+                        </div>
+                        <span className="text-xs font-medium text-foreground">{t.value.toLocaleString()}</span>
+                      </div>
                     ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="space-y-2 flex-1">
-                {tierDistribution.map((t) => (
-                  <div key={t.name} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: t.color }} />
-                      <span className="text-xs text-muted-foreground">{t.name}</span>
-                    </div>
-                    <span className="text-xs font-medium text-foreground">{t.value.toLocaleString()}</span>
                   </div>
-                ))}
-              </div>
+                </>
+              ) : (
+                <div className="text-sm text-muted-foreground text-center py-8 w-full">No users to distribute</div>
+              )}
             </div>
           </div>
 
           <div className="bg-card-elevated border border-border rounded-xl p-5">
             <h2 className="text-sm font-semibold text-foreground mb-4">Contest Participation Trend</h2>
             <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={contestParticipation}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                <XAxis dataKey="contest" tick={{ fill: '#6B7A8A', fontSize: 9 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#6B7A8A', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <Tooltip content={<CustomTooltip />} />
-                <Line type="monotone" dataKey="participants" stroke="#0EA5E9" strokeWidth={2} dot={{ fill: '#0EA5E9', r: 4 }} />
-              </LineChart>
+              {contestParticipation.length > 0 ? (
+                <LineChart data={contestParticipation}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                  <XAxis dataKey="contest" tick={{ fill: '#6B7A8A', fontSize: 9 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#6B7A8A', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Line type="monotone" dataKey="participants" stroke="#0EA5E9" strokeWidth={2} dot={{ fill: '#0EA5E9', r: 4 }} />
+                </LineChart>
+              ) : (
+                <div className="text-sm text-muted-foreground text-center py-8">No contests recorded</div>
+              )}
             </ResponsiveContainer>
           </div>
         </div>

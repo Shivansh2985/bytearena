@@ -13,6 +13,18 @@ interface AppLayoutProps {
 export default function AppLayout({ children, currentPath = '/', role = 'student' }: AppLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+
+  React.useEffect(() => {
+    fetch('/api/users/me')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.error) {
+          setUser(data);
+        }
+      })
+      .catch((err) => console.error('Failed to fetch user profile:', err));
+  }, []);
 
   return (
     <div className="flex h-screen bg-galaxy overflow-hidden">
@@ -34,6 +46,7 @@ export default function AppLayout({ children, currentPath = '/', role = 'student
         onMobileClose={() => setMobileOpen(false)}
         currentPath={currentPath}
         role={role}
+        user={user}
       />
 
       {/* Main content */}
@@ -45,6 +58,7 @@ export default function AppLayout({ children, currentPath = '/', role = 'student
           onMenuClick={() => setMobileOpen(true)}
           sidebarCollapsed={sidebarCollapsed}
           role={role}
+          user={user}
         />
         <main className="flex-1 overflow-y-auto">
           {children}

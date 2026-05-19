@@ -1,42 +1,20 @@
 'use client';
-import React, { useState } from 'react';
-import dynamic from 'next/dynamic';
+import React, { useState, useEffect } from 'react';
 import { TrendingUp } from 'lucide-react';
-
-const AreaChart = dynamic(
-  () => import('recharts').then((m) => m.AreaChart),
-  { ssr: false }
-);
-const Area = dynamic(() => import('recharts').then((m) => m.Area), { ssr: false });
-const XAxis = dynamic(() => import('recharts').then((m) => m.XAxis), { ssr: false });
-const YAxis = dynamic(() => import('recharts').then((m) => m.YAxis), { ssr: false });
-const CartesianGrid = dynamic(() => import('recharts').then((m) => m.CartesianGrid), { ssr: false });
-const Tooltip = dynamic(() => import('recharts').then((m) => m.Tooltip), { ssr: false });
-const ResponsiveContainer = dynamic(
-  () => import('recharts').then((m) => m.ResponsiveContainer),
-  { ssr: false }
-);
-const ReferenceLine = dynamic(
-  () => import('recharts').then((m) => m.ReferenceLine),
-  { ssr: false }
-);
-
-const ratingData = [
-  { contest: 'ByteBlitz #8', rating: 1820, date: 'Jan 12', rank: 892 },
-  { contest: 'CodeStorm #9', rating: 1895, date: 'Jan 26', rank: 743 },
-  { contest: 'ByteBlitz #9', rating: 1847, date: 'Feb 9', rank: 812 },
-  { contest: 'AlgoArena #4', rating: 1980, date: 'Feb 23', rank: 521 },
-  { contest: 'CodeStorm #10', rating: 2105, date: 'Mar 8', rank: 398 },
-  { contest: 'ByteBlitz #10', rating: 2087, date: 'Mar 22', rank: 412 },
-  { contest: 'AlgoArena #5', rating: 2210, date: 'Apr 5', rank: 302 },
-  { contest: 'ByteBlitz #11', rating: 2195, date: 'Apr 19', rank: 318 },
-  { contest: 'CodeStorm #11', rating: 2254, date: 'May 3', rank: 281 },
-  { contest: 'ByteBlitz #12', rating: 2341, date: 'May 17', rank: 342 },
-];
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+} from 'recharts';
 
 const ranges = ['All Time', '3 Months', '6 Months', '1 Year'];
 
-function CustomTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: typeof ratingData[0]; value: number }> }) {
+function CustomTooltip({ active, payload }: { active?: boolean; payload?: any }) {
   if (!active || !payload || !payload.length) return null;
   const d = payload[0].payload;
   return (
@@ -48,17 +26,36 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: Array<
           <p className="text-xs text-muted-foreground">Rating</p>
           <p className="text-sm font-bold text-purple-300 metric-value">{d.rating.toLocaleString()}</p>
         </div>
-        <div>
-          <p className="text-xs text-muted-foreground">Rank</p>
-          <p className="text-sm font-bold text-cyan-300 metric-value">#{d.rank}</p>
-        </div>
       </div>
     </div>
   );
 }
 
-export default function RatingChart() {
+export default function RatingChart({ user }: { user?: any }) {
   const [activeRange, setActiveRange] = useState('All Time');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="bg-card-elevated border border-border rounded-xl p-5 h-80 animate-pulse flex flex-col justify-between">
+        <div className="h-6 bg-muted rounded w-1/3" />
+        <div className="h-48 bg-muted rounded" />
+      </div>
+    );
+  }
+
+  const currentRating = user?.rating ?? 1200;
+  
+  // Generate a dynamic placeholder progression curve up to their current rating
+  const ratingData = [
+    { contest: 'Initial Rating', rating: 1200, date: 'Start' },
+    { contest: 'Recent Average', rating: Math.round((1200 + currentRating) / 2), date: 'Mid' },
+    { contest: 'Current Rating', rating: currentRating, date: 'Now' },
+  ];
 
   return (
     <div className="bg-card-elevated border border-border rounded-xl p-5">
@@ -68,7 +65,7 @@ export default function RatingChart() {
             <TrendingUp size={16} className="text-primary" />
             Rating Progression
           </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">10 rated contests · +521 total gain</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Live rating updates</p>
         </div>
         <div className="flex gap-1 bg-muted/40 rounded-lg p-1">
           {ranges.map((r) => (
@@ -134,7 +131,7 @@ export default function RatingChart() {
           <span className="text-xs text-muted-foreground">Expert threshold (2000)</span>
         </div>
         <div className="ml-auto text-xs text-muted-foreground">
-          Current: <span className="text-purple-300 font-semibold metric-value">2,341</span>
+          Current: <span className="text-purple-300 font-semibold metric-value">{currentRating.toLocaleString()}</span>
         </div>
       </div>
     </div>

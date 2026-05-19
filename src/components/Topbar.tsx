@@ -2,11 +2,13 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { Menu, Bell, Search, Zap, ChevronDown } from 'lucide-react';
+import { signOut } from 'next-auth/react';
 
 interface TopbarProps {
   onMenuClick: () => void;
   sidebarCollapsed: boolean;
   role?: 'student' | 'admin';
+  user?: any;
 }
 
 const notifications = [
@@ -16,10 +18,14 @@ const notifications = [
   { id: 'notif-4', type: 'contest', message: 'Results published: CodeStorm #12', time: '2d ago', unread: false },
 ];
 
-export default function Topbar({ onMenuClick, role = 'student' }: TopbarProps) {
+export default function Topbar({ onMenuClick, role = 'student', user }: TopbarProps) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const unreadCount = notifications.filter((n) => n.unread).length;
+  
+  const displayName = user?.name || (user?.firstName ? `${user.firstName} ${user.lastName || ''}` : '') || 'User';
+  const displayRating = user?.rating ?? 1200;
+  const initials = displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'US';
 
   const profileLinks = role === 'admin'
     ? [
@@ -58,7 +64,7 @@ export default function Topbar({ onMenuClick, role = 'student' }: TopbarProps) {
         {role === 'student' && (
           <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
             <Zap size={12} className="text-sky-300" />
-            <span className="text-xs font-semibold text-sky-300 metric-value">2,341</span>
+            <span className="text-xs font-semibold text-sky-300 metric-value">{displayRating.toLocaleString()}</span>
             <span className="text-xs text-muted-foreground">Rating</span>
           </div>
         )}
@@ -113,13 +119,17 @@ export default function Topbar({ onMenuClick, role = 'student' }: TopbarProps) {
             onClick={() => { setProfileOpen(!profileOpen); setNotifOpen(false); }}
             className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg hover:bg-muted/30 transition-colors"
           >
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold ${
-              role === 'admin' ?'bg-gradient-to-br from-amber-500 to-orange-600' :'bg-gradient-to-br from-sky-500 to-cyan-600'
-            }`}>
-              {role === 'admin' ? 'AD' : 'RK'}
-            </div>
+            {user?.imageUrl || user?.image ? (
+              <img src={user.imageUrl || user.image} alt={displayName} className="w-7 h-7 rounded-full object-cover" />
+            ) : (
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold ${
+                role === 'admin' ? 'bg-gradient-to-br from-amber-500 to-orange-600' : 'bg-gradient-to-br from-sky-500 to-cyan-600'
+              }`}>
+                {role === 'admin' ? 'AD' : initials}
+              </div>
+            )}
             <span className="hidden md:block text-sm font-medium text-foreground">
-              {role === 'admin' ? 'Admin' : 'Rahul K.'}
+              {role === 'admin' ? 'Admin' : displayName}
             </span>
             <ChevronDown size={14} className="text-muted-foreground" />
           </button>
@@ -137,13 +147,15 @@ export default function Topbar({ onMenuClick, role = 'student' }: TopbarProps) {
                 </Link>
               ))}
               <div className="border-t border-border">
-                <Link
-                  href="/sign-up-login"
-                  className="block px-4 py-2.5 text-sm text-danger hover:bg-danger/10 transition-colors"
-                  onClick={() => setProfileOpen(false)}
+                <button
+                  onClick={() => {
+                    setProfileOpen(false);
+                    signOut({ callbackUrl: '/sign-up-login' });
+                  }}
+                  className="w-full text-left block px-4 py-2.5 text-sm text-danger hover:bg-danger/10 transition-colors"
                 >
                   Sign Out
-                </Link>
+                </button>
               </div>
             </div>
           )}

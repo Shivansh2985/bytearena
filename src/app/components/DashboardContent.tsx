@@ -1,4 +1,5 @@
-import React from 'react';
+'use client';
+import React, { useState, useEffect } from 'react';
 import MetricsBentoGrid from './MetricsBentoGrid';
 import ContestFeed from './ContestFeed';
 import RatingChart from './RatingChart';
@@ -6,6 +7,21 @@ import ActivityFeed from './ActivityFeed';
 import UpcomingContests from './UpcomingContests';
 
 export default function DashboardContent() {
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    fetch('/api/users/me')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.error) {
+          setUser(data);
+        }
+      })
+      .catch((err) => console.error('Failed to fetch dashboard user data:', err));
+  }, []);
+
+  const displayName = user?.name || (user?.firstName ? `${user.firstName} ${user.lastName || ''}` : '') || 'User';
+
   return (
     <div className="px-6 lg:px-8 xl:px-10 2xl:px-12 py-6 max-w-screen-2xl mx-auto space-y-6">
       {/* Page header */}
@@ -13,7 +29,7 @@ export default function DashboardContent() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Welcome back, Rahul — 3 contests this week
+            Welcome back, {displayName} — {user?._count?.contests ?? 0} contests participated
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 border border-border rounded-lg px-3 py-2">
@@ -23,13 +39,13 @@ export default function DashboardContent() {
       </div>
 
       {/* Bento grid */}
-      <MetricsBentoGrid />
+      <MetricsBentoGrid user={user} />
 
       {/* Main content grid */}
       <div className="grid grid-cols-1 xl:grid-cols-3 2xl:grid-cols-3 gap-6">
         {/* Rating chart — 2 cols */}
         <div className="xl:col-span-2">
-          <RatingChart />
+          <RatingChart user={user} />
         </div>
         {/* Activity feed — 1 col */}
         <div className="xl:col-span-1">

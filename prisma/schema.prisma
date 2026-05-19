@@ -1,0 +1,320 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ContestStatus {
+  UPCOMING
+  LIVE
+  COMPLETED
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum SubmissionStatus {
+  PENDING
+  ACCEPTED
+  WRONG_ANSWER
+  TIME_LIMIT_EXCEEDED
+  MEMORY_LIMIT_EXCEEDED
+  RUNTIME_ERROR
+  COMPILATION_ERROR
+}
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  emailVerified   DateTime?
+  password        String?
+  name            String?
+  image           String?
+  username        String?  @unique
+  firstName       String?
+  lastName        String?
+  imageUrl        String?
+  role            Role     @default(USER)
+  rating          Int      @default(1200)
+  bio             String?
+  resumeUrl       String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  projects        Project[]
+  skills          String[]
+  badges          Badge[]
+  ratingHistory   RatingHistory[]
+  contests        ContestParticipant[]
+  submissions     Submission[]
+  notifications   Notification[]
+  proctoringLogs  ProctoringLog[]
+  snapshots       Snapshot[]
+  liveSessions    LiveSession[]
+  languageStats   LanguageStats[]
+
+  accounts        Account[]
+  sessions        Session[]
+}
+
+model Admin {
+  id              String   @id @default(uuid())
+  createdAt       DateTime @default(now())
+  auditLogs       AuditLog[]
+}
+
+model Contest {
+  id              String   @id @default(uuid())
+  title           String
+  description     String?
+  difficulty      Difficulty @default(MEDIUM)
+  status          ContestStatus @default(UPCOMING)
+  startTime       DateTime
+  endTime         DateTime
+  tags            String[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  questions       Question[]
+  participants    ContestParticipant[]
+  registrations   ContestRegistration[]
+}
+
+model ContestRegistration {
+  id              String   @id @default(uuid())
+  contestId       String
+  userId          String
+  createdAt       DateTime @default(now())
+  
+  contest         Contest  @relation(fields: [contestId], references: [id], onDelete: Cascade)
+}
+
+model ContestParticipant {
+  id              String   @id @default(uuid())
+  contestId       String
+  userId          String
+  score           Int      @default(0)
+  rank            Int?
+  hasEnded        Boolean  @default(false)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  contest         Contest  @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([contestId, userId])
+}
+
+model Question {
+  id              String   @id @default(uuid())
+  contestId       String?
+  title           String
+  problemStatement String
+  constraints     String
+  inputFormat     String
+  outputFormat    String
+  difficulty      Difficulty @default(MEDIUM)
+  points          Int      @default(100)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  contest         Contest? @relation(fields: [contestId], references: [id], onDelete: SetNull)
+  testCases       TestCase[]
+  submissions     Submission[]
+}
+
+model TestCase {
+  id              String   @id @default(uuid())
+  questionId      String
+  input           String
+  expectedOutput  String
+  isHidden        Boolean  @default(true)
+  isSample        Boolean  @default(false)
+  explanation     String?
+  
+  question        Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+model Submission {
+  id              String   @id @default(uuid())
+  questionId      String
+  userId          String
+  language        String
+  code            String
+  status          SubmissionStatus @default(PENDING)
+  runtime         Float?   // in ms
+  memory          Float?   // in KB
+  score           Int      @default(0)
+  
+  createdAt       DateTime @default(now())
+
+  question        Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  testResults     SubmissionTestResult[]
+}
+
+model SubmissionTestResult {
+  id              String   @id @default(uuid())
+  submissionId    String
+  testCaseId      String
+  status          SubmissionStatus
+  actualOutput    String?
+  runtime         Float?
+  memory          Float?
+  
+  submission      Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+}
+
+model RatingHistory {
+  id              String   @id @default(uuid())
+  userId          String
+  contestId       String?
+  ratingChange    Int
+  newRating       Int
+  createdAt       DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ProctoringLog {
+  id              String   @id @default(uuid())
+  userId          String
+  contestId       String
+  eventType       String   // e.g., "TAB_SWITCH", "MULTIPLE_FACES", "NO_FACE"
+  description     String?
+  severity        String   @default("WARNING") // "WARNING", "CRITICAL"
+  createdAt       DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Snapshot {
+  id              String   @id @default(uuid())
+  userId          String
+  contestId       String
+  imageUrl        String
+  createdAt       DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Badge {
+  id              String   @id @default(uuid())
+  name            String
+  imageUrl        String?
+  description     String?
+  userId          String
+  createdAt       DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id              String   @id @default(uuid())
+  userId          String
+  title           String
+  message         String
+  isRead          Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Project {
+  id              String   @id @default(uuid())
+  userId          String
+  title           String
+  description     String
+  link            String?
+  repoLink        String?
+  tags            String[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model LiveSession {
+  id              String   @id @default(uuid())
+  userId          String
+  socketId        String
+  isActive        Boolean  @default(true)
+  connectedAt     DateTime @default(now())
+  disconnectedAt  DateTime?
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model LanguageStats {
+  id              String   @id @default(uuid())
+  userId          String
+  language        String
+  submissions     Int      @default(0)
+  accepted        Int      @default(0)
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, language])
+}
+
+model AuditLog {
+  id              String   @id @default(uuid())
+  adminId         String
+  action          String
+  targetType      String   // e.g., "USER", "CONTEST"
+  targetId        String?
+  details         String?
+  createdAt       DateTime @default(now())
+
+  admin           Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id                 String  @id @default(uuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?  @db.Text
+  access_token       String?  @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?  @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}

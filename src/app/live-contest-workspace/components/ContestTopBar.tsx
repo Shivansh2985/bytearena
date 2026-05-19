@@ -19,6 +19,9 @@ interface ContestTopBarProps {
   saveStatus: 'saved' | 'saving' | 'unsaved';
   myRank: number;
   runResult: RunResult;
+  mediaStream?: MediaStream | null;
+  cameraBlocked?: boolean;
+  onEndContest?: () => void;
 }
 
 const languages: { value: Language; label: string }[] = [
@@ -83,9 +86,20 @@ export default function ContestTopBar({
   saveStatus,
   myRank,
   runResult,
+  mediaStream,
+  cameraBlocked,
+  onEndContest,
 }: ContestTopBarProps) {
   const [langOpen, setLangOpen] = useState(false);
   const isRunning = runResult.status === 'running';
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (videoRef.current && mediaStream && !cameraBlocked) {
+      videoRef.current.srcObject = mediaStream;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [mediaStream, cameraBlocked]);
 
   const saveLabel = saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved ✓' : 'Unsaved';
   const saveCls = saveStatus === 'saved' ? 'text-emerald-400' : saveStatus === 'saving' ? 'text-amber-300' : 'text-red-400';
@@ -134,6 +148,19 @@ export default function ContestTopBar({
 
       {/* Spacer */}
       <div className="flex-1" />
+
+      {/* Proctoring Video Box */}
+      {!cameraBlocked && (
+        <div className="hidden md:flex relative w-16 h-10 rounded-md overflow-hidden border border-border shadow-inner bg-black/50 items-center justify-center">
+          <video
+            ref={videoRef}
+            className="w-full h-full object-cover transform scale-x-[-1]"
+            muted
+            playsInline
+          />
+          <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-red-400 pulse-live shadow-md" />
+        </div>
+      )}
 
       {/* Save status */}
       <div className={`hidden md:flex items-center gap-1.5 text-xs ${saveCls}`}>
@@ -200,6 +227,14 @@ export default function ContestTopBar({
           <Send size={13} />
         )}
         Submit
+      </button>
+
+      {/* End Contest */}
+      <button
+        onClick={onEndContest}
+        className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-semibold shadow-[0_0_15px_rgba(220,38,38,0.3)] transition-all duration-150 active:scale-95"
+      >
+        End Contest
       </button>
 
       {/* Fullscreen */}
