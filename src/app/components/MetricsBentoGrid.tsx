@@ -60,13 +60,16 @@ export default function MetricsBentoGrid({ user }: MetricsBentoGridProps) {
   const submissionsCount = user?._count?.submissions ?? 0;
   const contestsCount = user?._count?.contests ?? 0;
 
-  const globalRank = contestsCount === 0 
+  const globalRank = contestsCount === 0 && !user?.globalRank
     ? 'Unranked' 
-    : `#${Math.max(1, 5000 - Math.round((rating - 1200) * 2.5))}`;
+    : `#${user?.globalRank || 1}`;
 
   const rankPercent = contestsCount === 0
     ? 'Participate to rank'
     : `Top ${Math.max(0.1, 100 - ((rating - 800) / 2200) * 100).toFixed(1)}% worldwide`;
+
+  const acceptedSubmissions = user?.acceptedSubmissions ?? 0;
+  const accuracyPercent = submissionsCount > 0 ? Math.round((acceptedSubmissions / submissionsCount) * 100) : 0;
 
   const dynamicMetrics = [
     {
@@ -125,15 +128,15 @@ export default function MetricsBentoGrid({ user }: MetricsBentoGridProps) {
     {
       id: 'metric-accuracy',
       label: 'Acceptance Rate',
-      value: submissionsCount > 0 ? '70%' : '0%',
+      value: submissionsCount > 0 ? `${accuracyPercent}%` : '0%',
       change: '0%',
       changeDir: 'up',
       changeLabel: 'vs last month',
       icon: CheckCircle,
       hero: false,
       color: 'success',
-      sub: `${submissionsCount} AC / ${submissionsCount} total`,
-      progress: submissionsCount > 0 ? 70 : 0,
+      sub: `${acceptedSubmissions} AC / ${submissionsCount} total`,
+      progress: accuracyPercent,
     },
     {
       id: 'metric-contests',

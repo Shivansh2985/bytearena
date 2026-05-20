@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { Users, Calendar, Bookmark, BookmarkCheck, Bell, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import Badge from '@/components/ui/Badge';
-import ToastProvider from '@/components/ui/Toast';
 
 interface Contest {
   id: string;
@@ -79,7 +78,6 @@ export default function UpcomingContests() {
 
   return (
     <div className="bg-card-elevated border border-border rounded-xl p-5">
-      <ToastProvider />
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
           <Calendar size={15} className="text-accent" />
@@ -95,12 +93,14 @@ export default function UpcomingContests() {
             <div className="h-4 bg-muted rounded w-1/2"></div>
             <div className="h-8 bg-muted rounded w-full mt-2"></div>
           </div>
-        ) : contests.length === 0 ? (
+        ) : contests.filter((c) => c.startTime > Date.now()).length === 0 ? (
           <div className="text-center py-6 text-muted-foreground text-sm">
             No upcoming contests at the moment.
           </div>
         ) : (
-          contests.map((c) => {
+          contests
+            .filter((c) => c.startTime > Date.now())
+            .map((c) => {
             const isRegistered = c.registered;
             const isBookmarked = bookmarks.has(c.id);
             const durationMs = c.endTime - c.startTime;

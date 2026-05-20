@@ -6,6 +6,7 @@ import CodeEditorPanel from './CodeEditorPanel';
 import OutputPanel from './OutputPanel';
 import ProctoringOverlay from './ProctoringOverlay';
 import ToastProvider from '@/components/ui/Toast';
+import { io, Socket } from 'socket.io-client';
 
 export type ProblemStatus = 'unattempted' | 'attempted' | 'answered';
 
@@ -263,8 +264,35 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
   const [permissionsGranted, setPermissionsGranted] = useState(false);
   const [dynamicProblems, setDynamicProblems] = useState<Problem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [contestTitle, setContestTitle] = useState('Practice');
 
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const socketRef = useRef<Socket | null>(null);
+
+  const [isCompleted, setIsCompleted] = useState(false);
+  const [contestEndTime, setContestEndTime] = useState<number | null>(null);
+  const [contestStartTime, setContestStartTime] = useState<number | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [reviewingSubmission, setReviewingSubmission] = useState<{
+    userName: string;
+    isCorrect: boolean;
+    code: string;
+    language: Language;
+  } | null>(null);
+
+  // Fetch current user details
+  useEffect(() => {
+    fetch('/api/users/me')
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error) {
+          setCurrentUser(data);
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   useEffect(() => {
     if (!contestId) {
@@ -275,13 +303,37 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
     fetch(`/api/contests/${contestId}`)
       .then(res => res.json())
       .then(data => {
-        if (data.hasEnded) {
+        if (data.error) {
+          setDynamicProblems(problems);
+          setLoading(false);
+          return;
+        }
+
+        if (data.title) {
+          setContestTitle(data.title);
+        }
+
+        const now = Date.now();
+        const endTime = new Date(data.endTime).getTime();
+        const startTime = new Date(data.startTime).getTime();
+        
+        setContestEndTime(endTime);
+        setContestStartTime(startTime);
+
+        const isEnded = data.status === 'completed' || now >= endTime;
+
+        if (isEnded) {
+          setIsCompleted(true);
+          setPermissionsGranted(true);
+        } else if (data.hasEnded) {
           alert("You have already ended or completed this contest.");
           window.location.href = '/user-dashboard';
           return;
         }
-        if (!data.error && data.questions) {
-          const mapped = data.questions.map((q: any, i: number) => ({
+
+        let mapped = problems;
+        if (data.questions) {
+          mapped = data.questions.map((q: any, i: number) => ({
             id: q.id,
             index: i + 1,
             title: q.title,
@@ -304,7 +356,50 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
         } else {
           setDynamicProblems(problems);
         }
-        setLoading(false);
+
+        // Handle query parameter for problem select
+        if (typeof window !== 'undefined') {
+          const queryParams = new URLSearchParams(window.location.search);
+          const queryProbId = queryParams.get('problemId');
+          if (queryProbId) {
+            const list = mapped.length > 0 ? mapped : problems;
+            const idx = list.findIndex((p: any) => p.id === queryProbId);
+            if (idx !== -1) {
+              setCurrentProblem(idx);
+            }
+          }
+        }
+
+        if (isEnded) {
+          fetch(`/api/submissions?contestId=${contestId}`)
+            .then(res => res.json())
+            .then(subsList => {
+              if (Array.isArray(subsList)) {
+                setSubmissions(subsList);
+
+                // Handle query parameter for viewing submission code
+                if (typeof window !== 'undefined') {
+                  const queryParams = new URLSearchParams(window.location.search);
+                  const viewSubId = queryParams.get('viewSubmissionId');
+                  if (viewSubId) {
+                    const matchedSub = subsList.find((s: any) => s.id === viewSubId);
+                    if (matchedSub) {
+                      setReviewingSubmission({
+                        userName: matchedSub.user?.name || (matchedSub.user?.firstName ? `${matchedSub.user.firstName} ${matchedSub.user.lastName || ''}` : '') || 'User',
+                        isCorrect: matchedSub.status.toLowerCase() === 'accepted',
+                        code: matchedSub.code,
+                        language: matchedSub.language.toLowerCase() as Language
+                      });
+                    }
+                  }
+                }
+              }
+              setLoading(false);
+            })
+            .catch(() => setLoading(false));
+        } else {
+          setLoading(false);
+        }
       })
       .catch(() => {
         setDynamicProblems(problems);
@@ -313,6 +408,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
   }, [contestId]);
 
   const requestPermissions = async () => {
+    if (isCompleted) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       setPermissionsGranted(true);
@@ -321,6 +417,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       // Start taking snapshots
       setInterval(() => {
         const video = document.createElement('video');
+        video.muted = true;
         video.srcObject = stream;
         video.play();
         video.onplaying = () => {
@@ -348,22 +445,154 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
     }
   };
 
+  // WebRTC initialization when mediaStream is available
+  useEffect(() => {
+    if (isCompleted || !mediaStream) return;
+
+    const socket = io({ path: '/api/socket' });
+    socketRef.current = socket;
+    
+    // Store peer connections per admin
+    const peerConnections = new Map<string, RTCPeerConnection>();
+
+    const createPeerConnection = async (adminSocketId: string) => {
+      if (peerConnections.has(adminSocketId)) return;
+      
+      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      peerConnections.set(adminSocketId, pc);
+
+      mediaStream.getTracks().forEach(track => pc.addTrack(track, mediaStream));
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit('webrtc-ice-candidate', {
+            candidate: event.candidate,
+            toSocketId: adminSocketId,
+            userId: currentUser?.id
+          });
+        }
+      };
+
+      try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        socket.emit('webrtc-offer', {
+          offer: pc.localDescription,
+          toSocketId: adminSocketId,
+          fromSocketId: socket.id,
+          userId: currentUser?.id
+        });
+      } catch (err) {
+        console.error("WebRTC Offer Error:", err);
+      }
+      return pc;
+    };
+
+    socket.on('connect', () => {
+      // Broadcast to room to notify admins we are here (if they are already in the room)
+      // They will send us a request or we just wait for 'admin-joined'
+      // Or we can just blindly offer to the 'admin-room' as well.
+      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      peerConnectionRef.current = pc;
+      mediaStream.getTracks().forEach(track => pc.addTrack(track, mediaStream));
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit('webrtc-ice-candidate', {
+            candidate: event.candidate,
+            toRoom: 'admin-room',
+            userId: currentUser?.id
+          });
+        }
+      };
+
+      pc.createOffer().then(async offer => {
+        await pc.setLocalDescription(offer);
+        socket.emit('webrtc-offer', {
+          offer: pc.localDescription,
+          toRoom: 'admin-room',
+          fromSocketId: socket.id,
+          userId: currentUser?.id
+        });
+      }).catch(console.error);
+    });
+
+    socket.on('admin-joined', (data) => {
+      if (data.adminSocketId) {
+        createPeerConnection(data.adminSocketId);
+      }
+    });
+
+    socket.on('webrtc-answer', async (data) => {
+      try {
+        // Try admin-specific pc first
+        const pc = data.fromSocketId ? peerConnections.get(data.fromSocketId) : null;
+        if (pc && pc.signalingState !== 'stable') {
+          await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+        } else if (peerConnectionRef.current && peerConnectionRef.current.signalingState !== 'stable') {
+          await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.answer));
+        }
+      } catch (err) {
+        console.error("WebRTC Answer Error:", err);
+      }
+    });
+
+    socket.on('webrtc-ice-candidate', async (data) => {
+      try {
+        const pc = data.fromSocketId ? peerConnections.get(data.fromSocketId) : null;
+        if (pc && data.candidate) {
+          await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+        } else if (peerConnectionRef.current && data.candidate) {
+          await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
+        }
+      } catch (err) {
+        console.error("ICE Candidate Error:", err);
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+      peerConnections.forEach(pc => pc.close());
+      if (peerConnectionRef.current) peerConnectionRef.current.close();
+    };
+  }, [isCompleted, mediaStream, currentUser]);
+
   const currentProblemList = dynamicProblems.length > 0 ? dynamicProblems : problems;
   
   const [currentProblem, setCurrentProblem] = useState(0);
   const [language, setLanguage] = useState<Language>('cpp');
   const [code, setCode] = useState<Record<string, Record<Language, string>>>({});
+
+  // Reset reviewing submission when changing problem
+  useEffect(() => {
+    setReviewingSubmission(null);
+  }, [currentProblem]);
   
   useEffect(() => {
     if (currentProblemList.length > 0 && Object.keys(code).length === 0) {
       const init: Record<string, Record<Language, string>> = {};
+      const statusInit: Record<string, ProblemStatus> = {};
+
       currentProblemList.forEach((p) => {
         init[p.id] = { cpp: defaultCode.cpp, python: defaultCode.python, java: defaultCode.java, javascript: defaultCode.javascript };
+        statusInit[p.id] = 'unattempted';
+
+        if (isCompleted && currentUser) {
+          const userSubs = submissions.filter(s => s.questionId === p.id && s.userId === currentUser.id);
+          if (userSubs.length > 0) {
+            const latestSub = userSubs[0];
+            const subLang = latestSub.language.toLowerCase() as Language;
+            if (init[p.id][subLang] !== undefined) {
+              init[p.id][subLang] = latestSub.code;
+            }
+            statusInit[p.id] = latestSub.status.toLowerCase() === 'accepted' ? 'answered' : 'attempted';
+          }
+        }
       });
       setCode(init);
-      setProblemStatuses(Object.fromEntries(currentProblemList.map((p) => [p.id, 'unattempted'])));
+      setProblemStatuses(statusInit);
     }
-  }, [currentProblemList]);
+  }, [currentProblemList, isCompleted, currentUser, submissions]);
 
   const [runResult, setRunResult] = useState<RunResult>({ status: null, output: '' });
   const [outputOpen, setOutputOpen] = useState(false);
@@ -375,6 +604,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [myRank, setMyRank] = useState(342);
   const [problemStatuses, setProblemStatuses] = useState<Record<string, ProblemStatus>>({});
+  const [warningLogs, setWarningLogs] = useState<any[]>([]);
 
   const isDraggingH = useRef(false);
   const isDraggingV = useRef(false);
@@ -382,15 +612,19 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
 
   // Auto-save simulation
   useEffect(() => {
+    if (isCompleted) return;
     setSaveStatus('saving');
     const t = setTimeout(() => setSaveStatus('saved'), 1200);
     return () => clearTimeout(t);
-  }, [code]);
+  }, [code, isCompleted]);
 
   // Proctoring: simulate focus loss
   useEffect(() => {
+    if (isCompleted) return;
     const handleBlur = () => {
       setProctoringWarning(true);
+      const newLog = { id: Date.now().toString(), time: new Date().toLocaleTimeString(), type: 'focus_loss', message: 'Tab focus lost — switched to another window', severity: 'high' };
+      setWarningLogs(prev => [newLog, ...prev]);
       if (contestId) {
         fetch('/api/proctoring/log', {
           method: 'POST',
@@ -415,7 +649,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       window.removeEventListener('blur', handleBlur);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [contestId]);
+  }, [contestId, isCompleted]);
 
   const handleMouseMoveH = useCallback((e: MouseEvent) => {
     if (!isDraggingH.current || !containerRef.current) return;
@@ -469,7 +703,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          code: code[prob.id]?.[language] || '',
+          code: code[prob.id]?.[language] || defaultCode[language],
           language,
           problemId: prob.id,
           action: 'run'
@@ -525,7 +759,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          code: code[prob.id]?.[language] || '',
+          code: code[prob.id]?.[language] || defaultCode[language],
           language,
           problemId: prob.id,
           action: 'submit'
@@ -571,6 +805,9 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
 
   const probId = currentProblemList[currentProblem]?.id;
   const currentCode = probId ? (code[probId]?.[language] || defaultCode[language]) : '';
+
+  const displayLanguage = reviewingSubmission ? reviewingSubmission.language : language;
+  const displayCode = reviewingSubmission ? reviewingSubmission.code : currentCode;
   
   const setCurrentCode = (val: string) => {
     if (!probId) return;
@@ -601,7 +838,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       <ToastProvider />
 
       {/* Proctoring border warning */}
-      {proctoringWarning && <div className="proctor-overlay" aria-hidden="true" />}
+      {proctoringWarning && !isCompleted && <div className="proctor-overlay" aria-hidden="true" />}
 
       {/* Top bar */}
       <ContestTopBar
@@ -609,7 +846,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
         problemStatuses={problemStatuses}
         currentProblem={currentProblem}
         onSelectProblem={setCurrentProblem}
-        language={language}
+        language={displayLanguage}
         onLanguageChange={setLanguage}
         onRun={handleRun}
         onSubmit={handleSubmit}
@@ -621,6 +858,10 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
         mediaStream={mediaStream}
         cameraBlocked={cameraBlocked}
         onEndContest={handleEndContest}
+        isCompleted={isCompleted}
+        contestTitle={contestTitle}
+        contestStartTime={contestStartTime}
+        contestEndTime={contestEndTime}
       />
 
       {/* Main workspace */}
@@ -635,6 +876,16 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
             onNext={() => setCurrentProblem((p) => Math.min(currentProblemList.length - 1, p + 1))}
             onPrev={() => setCurrentProblem((p) => Math.max(0, p - 1))}
             totalProblems={currentProblemList.length}
+            isCompleted={isCompleted}
+            submissions={submissions}
+            onViewCode={(code, lang, userName, isCorrect) => {
+              setReviewingSubmission({
+                userName,
+                isCorrect,
+                code,
+                language: lang as Language
+              });
+            }}
           />
         </div>
 
@@ -654,12 +905,19 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
             style={outputOpen ? { height: `${100 - outputHeight}%` } : { flex: 1 }}
           >
             <CodeEditorPanel
-              code={currentCode}
+              code={displayCode}
               onChange={setCurrentCode}
-              language={language}
+              language={displayLanguage}
               problem={currentProblemList[currentProblem]}
               cameraBlocked={cameraBlocked}
               onToggleCamera={() => setCameraBlocked(!cameraBlocked)}
+              isReadOnly={isCompleted || !!reviewingSubmission}
+              reviewBanner={reviewingSubmission ? {
+                userName: reviewingSubmission.userName,
+                isCorrect: reviewingSubmission.isCorrect,
+                language: reviewingSubmission.language.toUpperCase(),
+                onBackToOwn: () => setReviewingSubmission(null)
+              } : null}
             />
           </div>
 
@@ -706,10 +964,13 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       </div>
 
       {/* Proctoring overlay component */}
-      <ProctoringOverlay
-        warning={proctoringWarning}
-        cameraBlocked={cameraBlocked}
-      />
+      {!isCompleted && (
+        <ProctoringOverlay
+          warning={proctoringWarning}
+          cameraBlocked={cameraBlocked}
+          warningLogs={warningLogs}
+        />
+      )}
     </div>
   );
 }

@@ -22,7 +22,9 @@ export async function GET(req: Request) {
         badges: [],
         ratingHistory: [],
         languageStats: [],
-        _count: { submissions: 0, contests: 0 }
+        _count: { submissions: 0, contests: 0 },
+        globalRank: 1,
+        acceptedSubmissions: 0
       });
     }
 
@@ -33,6 +35,19 @@ export async function GET(req: Request) {
         badges: true,
         ratingHistory: { orderBy: { createdAt: 'desc' }, take: 10 },
         languageStats: true,
+        contests: {
+          include: {
+            contest: {
+              include: {
+                _count: {
+                  select: { participants: true }
+                }
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 5
+        },
         _count: {
           select: { submissions: true, contests: true }
         }
@@ -41,7 +56,22 @@ export async function GET(req: Request) {
 
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    return NextResponse.json(user);
+    // Calculate Global Rank
+    const higherRatedCount = await prisma.user.count({
+      where: { rating: { gt: user.rating } }
+    });
+    const globalRank = higherRatedCount + 1;
+
+    // Calculate Accepted Submissions
+    const acceptedSubmissions = await prisma.submission.count({
+      where: { userId, status: 'ACCEPTED' }
+    });
+
+    return NextResponse.json({
+      ...user,
+      globalRank,
+      acceptedSubmissions
+    });
   } catch (error) {
     console.error('Error fetching user data:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

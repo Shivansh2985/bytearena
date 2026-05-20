@@ -41,6 +41,8 @@ export default function LeaderboardPage() {
   const [search, setSearch] = useState('');
   const [period, setPeriod] = useState<'all' | 'month' | 'week'>('all');
   const [user, setUser] = useState<any>(null);
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
 
   React.useEffect(() => {
     fetch('/api/users/me')
@@ -53,38 +55,42 @@ export default function LeaderboardPage() {
       .catch((err) => console.error('Failed to fetch leaderboard user data:', err));
   }, []);
 
-  const displayName = user?.name || (user?.firstName ? `${user.firstName} ${user.lastName || ''}` : '') || 'User';
-  const displayRating = user?.rating ?? 1200;
-  const initials = displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'US';
-
-  let tier = 'Beginner';
-  if (displayRating >= 2400) tier = 'Master';
-  else if (displayRating >= 2100) tier = 'Candidate Master';
-  else if (displayRating >= 1900) tier = 'Expert';
-  else if (displayRating >= 1600) tier = 'Specialist';
-  else if (displayRating >= 1400) tier = 'Pupil';
-
-  const contestsCount = user?._count?.contests ?? 0;
-  const submissionsCount = user?._count?.submissions ?? 0;
-
-  const dynamicMe: LeaderboardEntry = {
-    rank: contestsCount === 0 ? 342 : Math.max(10, 5000 - Math.round((displayRating - 1200) * 2.5)),
-    name: displayName,
-    avatar: initials,
-    rating: displayRating,
-    change: contestsCount > 0 ? 87 : 0,
-    contests: contestsCount,
-    solved: submissionsCount,
-    country: '🇮🇳',
-    tier: tier,
-    isMe: true,
-  };
-
-  const leaderboardData: LeaderboardEntry[] = [...staticLeaderboardData, dynamicMe];
+  React.useEffect(() => {
+    fetch('/api/users/leaderboard')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          const mapped = data.map((u: any, idx: number) => ({
+            rank: idx + 1,
+            name: u.name,
+            avatar: u.avatar,
+            rating: u.rating,
+            change: u.change || 0,
+            contests: u.contests || 0,
+            solved: u.solved || 0,
+            country: u.country || '🇮🇳',
+            tier: u.tier,
+            isMe: u.id === user?.id,
+          }));
+          setLeaderboardData(mapped);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch leaderboard:', err);
+        setLoading(false);
+      });
+  }, [user]);
 
   const filtered = leaderboardData.filter((u) =>
     u.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  // Top 3 for podium
+  const top1 = filtered.find(u => u.rank === 1) || { rank: 1, name: 'Arjun Mehta', avatar: 'AM', rating: 3210, tier: 'Master' };
+  const top2 = filtered.find(u => u.rank === 2) || { rank: 2, name: 'Priya Sharma', avatar: 'PS', rating: 3180, tier: 'Master' };
+  const top3 = filtered.find(u => u.rank === 3) || { rank: 3, name: 'Karan Patel', avatar: 'KP', rating: 3050, tier: 'Master' };
+  const podiumList = [top2, top1, top3];
 
   return (
     <AppLayout currentPath="/leaderboard" role="student">
@@ -102,7 +108,7 @@ export default function LeaderboardPage() {
 
         {/* Top 3 podium */}
         <div className="grid grid-cols-3 gap-4">
-          {[leaderboardData[1], leaderboardData[0], leaderboardData[2]].map((user, i) => {
+          {podiumList.map((user, i) => {
             const podiumRank = i === 0 ? 2 : i === 1 ? 1 : 3;
             const heights = ['h-24', 'h-32', 'h-20'];
             const medals = ['🥈', '🥇', '🥉'];

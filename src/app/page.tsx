@@ -55,7 +55,7 @@ function PublicNav() {
           className="p-2 text-muted-foreground hover:text-foreground transition-colors" 
           aria-label="Toggle theme"
         >
-          {isDark ? <Sun size={18} /> : <Moon size={18} />}
+          {mounted && isDark ? <Sun size={18} /> : <Moon size={18} />}
         </button>
         {!isLoaded ? null : userId ? (
           <Link href="/user-dashboard" className="bg-primary px-4 py-2 rounded-md text-sm font-semibold text-white hover:opacity-90 transition-opacity">Go to Dashboard</Link>

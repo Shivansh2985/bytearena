@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   try {
     const session = await auth();
@@ -13,7 +15,6 @@ export async function GET(req: Request) {
     const difficulty = searchParams.get('difficulty');
     
     const whereClause: any = {};
-    if (status) whereClause.status = status;
     if (difficulty) whereClause.difficulty = difficulty;
 
     const contests = await prisma.contest.findMany({
@@ -59,7 +60,12 @@ export async function GET(req: Request) {
       };
     });
 
-    return NextResponse.json(formattedContests);
+    let filteredContests = formattedContests;
+    if (status) {
+      filteredContests = formattedContests.filter((c: any) => c.status.toLowerCase() === status.toLowerCase());
+    }
+
+    return NextResponse.json(filteredContests);
   } catch (error) {
     console.error('Error fetching contests:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

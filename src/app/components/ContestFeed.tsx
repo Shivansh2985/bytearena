@@ -125,7 +125,7 @@ export default function ContestFeed() {
                 ))}
               </div>
 
-              <Link href="/live-contest-workspace">
+              <Link href={`/live-contest-workspace/${c.id}`}>
                 <button className="btn-primary w-full py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all duration-150 active:scale-95">
                   {c.myRank ? 'Continue Contest' : 'Join Contest'}
                   <ArrowRight size={13} />

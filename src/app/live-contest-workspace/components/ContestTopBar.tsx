@@ -22,6 +22,10 @@ interface ContestTopBarProps {
   mediaStream?: MediaStream | null;
   cameraBlocked?: boolean;
   onEndContest?: () => void;
+  isCompleted?: boolean;
+  contestTitle?: string;
+  contestStartTime?: number | null;
+  contestEndTime?: number | null;
 }
 
 const languages: { value: Language; label: string }[] = [
@@ -34,22 +38,24 @@ const languages: { value: Language; label: string }[] = [
 const CONTEST_DURATION = 2 * 60 * 60 * 1000; // 2 hours
 const CONTEST_START = Date.now() - 23 * 60 * 1000; // started 23 min ago
 
-function ContestTimer() {
+function ContestTimer({ startTime, endTime }: { startTime?: number | null, endTime?: number | null }) {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
-    const calc = () => setElapsed(Date.now() - CONTEST_START);
+    const start = startTime || CONTEST_START;
+    const calc = () => setElapsed(Date.now() - start);
     calc();
     const id = setInterval(calc, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [startTime]);
 
-  const remaining = Math.max(0, CONTEST_DURATION - elapsed);
+  const duration = endTime && startTime ? endTime - startTime : CONTEST_DURATION;
+  const remaining = Math.max(0, duration - elapsed);
   const h = Math.floor(remaining / 3600000);
   const m = Math.floor((remaining % 3600000) / 60000);
   const s = Math.floor((remaining % 60000) / 1000);
   const isUrgent = remaining < 15 * 60 * 1000;
-  const pct = (elapsed / CONTEST_DURATION) * 100;
+  const pct = Math.min(100, Math.max(0, (elapsed / duration) * 100));
 
   return (
     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${
@@ -89,6 +95,10 @@ export default function ContestTopBar({
   mediaStream,
   cameraBlocked,
   onEndContest,
+  isCompleted = false,
+  contestTitle = 'Practice',
+  contestStartTime,
+  contestEndTime,
 }: ContestTopBarProps) {
   const [langOpen, setLangOpen] = useState(false);
   const isRunning = runResult.status === 'running';
@@ -113,7 +123,7 @@ export default function ContestTopBar({
       >
         <ArrowLeft size={15} className="group-hover:-translate-x-0.5 transition-transform" />
         <AppLogo size={22} />
-        <span className="hidden md:block text-xs font-semibold text-foreground">ByteBlitz #18</span>
+        <span className="hidden md:block text-xs font-semibold text-foreground">{contestTitle}</span>
       </Link>
 
       <div className="w-px h-6 bg-border flex-shrink-0" />
@@ -143,14 +153,20 @@ export default function ContestTopBar({
 
       <div className="w-px h-6 bg-border flex-shrink-0" />
 
-      {/* Timer */}
-      <ContestTimer />
+      {/* Timer / Completed Badge */}
+      {isCompleted ? (
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-400">
+          <span className="text-[10px] font-bold uppercase tracking-wider">Completed</span>
+        </div>
+      ) : (
+        <ContestTimer startTime={contestStartTime} endTime={contestEndTime} />
+      )}
 
       {/* Spacer */}
       <div className="flex-1" />
 
       {/* Proctoring Video Box */}
-      {!cameraBlocked && (
+      {!cameraBlocked && !isCompleted && (
         <div className="hidden md:flex relative w-16 h-10 rounded-md overflow-hidden border border-border shadow-inner bg-black/50 items-center justify-center">
           <video
             ref={videoRef}
@@ -163,10 +179,12 @@ export default function ContestTopBar({
       )}
 
       {/* Save status */}
-      <div className={`hidden md:flex items-center gap-1.5 text-xs ${saveCls}`}>
-        <Save size={11} />
-        {saveLabel}
-      </div>
+      {!isCompleted && (
+        <div className={`hidden md:flex items-center gap-1.5 text-xs ${saveCls}`}>
+          <Save size={11} />
+          {saveLabel}
+        </div>
+      )}
 
       {/* My rank */}
       <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
@@ -202,40 +220,46 @@ export default function ContestTopBar({
       </div>
 
       {/* Run */}
-      <button
-        onClick={onRun}
-        disabled={isRunning}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-xs font-semibold hover:bg-emerald-600/30 transition-all duration-150 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {isRunning ? (
-          <div className="w-3.5 h-3.5 border border-emerald-300/40 border-t-emerald-300 rounded-full animate-spin" />
-        ) : (
-          <Play size={13} />
-        )}
-        Run
-      </button>
+      {!isCompleted && (
+        <button
+          onClick={onRun}
+          disabled={isRunning}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-500/30 text-emerald-300 text-xs font-semibold hover:bg-emerald-600/30 transition-all duration-150 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isRunning ? (
+            <div className="w-3.5 h-3.5 border border-emerald-300/40 border-t-emerald-300 rounded-full animate-spin" />
+          ) : (
+            <Play size={13} />
+          )}
+          Run
+        </button>
+      )}
 
       {/* Submit */}
-      <button
-        onClick={onSubmit}
-        disabled={isRunning}
-        className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg btn-primary text-xs font-semibold transition-all duration-150 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {isRunning ? (
-          <div className="w-3.5 h-3.5 border border-white/30 border-t-white rounded-full animate-spin" />
-        ) : (
-          <Send size={13} />
-        )}
-        Submit
-      </button>
+      {!isCompleted && (
+        <button
+          onClick={onSubmit}
+          disabled={isRunning}
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg btn-primary text-xs font-semibold transition-all duration-150 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isRunning ? (
+            <div className="w-3.5 h-3.5 border border-white/30 border-t-white rounded-full animate-spin" />
+          ) : (
+            <Send size={13} />
+          )}
+          Submit
+        </button>
+      )}
 
       {/* End Contest */}
-      <button
-        onClick={onEndContest}
-        className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-semibold shadow-[0_0_15px_rgba(220,38,38,0.3)] transition-all duration-150 active:scale-95"
-      >
-        End Contest
-      </button>
+      {!isCompleted && (
+        <button
+          onClick={onEndContest}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-semibold shadow-[0_0_15px_rgba(220,38,38,0.3)] transition-all duration-150 active:scale-95"
+        >
+          End Contest
+        </button>
+      )}
 
       {/* Fullscreen */}
       <button

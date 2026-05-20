@@ -90,7 +90,48 @@ const kpis = [
   { label: 'Active Days', value: '142', icon: Activity, color: 'violet', sub: 'This year' },
 ];
 
+  const iconMap: Record<string, any> = {
+    'Total Submissions': Code2,
+    'Acceptance Rate': Target,
+    'Avg Solve Time': Clock,
+    'Current Streak': Flame,
+    'Interview Score': Award,
+    'Active Days': Activity
+  };
+
 export default function AnalyticsPage() {
+  const [analytics, setAnalytics] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  React.useEffect(() => {
+    fetch('/api/users/me/analytics')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.error) {
+          setAnalytics(data);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch analytics:', err);
+        setLoading(false);
+      });
+  }, []);
+
+  const activeKpis = (analytics?.kpis || kpis).map((k: any) => ({
+    ...k,
+    icon: iconMap[k.label] || Code2
+  }));
+
+  const userParticipationData = analytics?.participationData || participationData;
+  const userAccuracyData = analytics?.accuracyData || accuracyData;
+  const userLanguageData = analytics?.languageData || languageData;
+  const userDifficultyData = analytics?.difficultyData || difficultyData;
+  const userRankData = analytics?.rankData || rankData;
+  const userTopicData = analytics?.topicData || topicData;
+  const userSkillRadar = analytics?.skillRadar || skillRadar;
+  const userHeatmapData = analytics?.heatmapData || heatmapData;
+
   return (
     <AppLayout currentPath="/analytics" role="student">
       <div className="px-6 lg:px-8 xl:px-10 py-6 max-w-screen-2xl mx-auto space-y-6">
@@ -107,11 +148,11 @@ export default function AnalyticsPage() {
 
         {/* KPI grid */}
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-          {kpis.map((kpi) => {
+          {activeKpis.map((kpi: any) => {
             const Icon = kpi.icon;
             return (
               <div key={kpi.label} className="bg-card-elevated border border-border rounded-xl p-4">
-                <Icon size={14} className={`text-${kpi.color}-400 mb-2`} />
+                <Icon size={14} className={`text-${kpi.color || 'sky'}-400 mb-2`} />
                 <p className="text-xl font-bold text-foreground metric-value">{kpi.value}</p>
                 <p className="text-xs text-muted-foreground mt-0.5 leading-tight">{kpi.label}</p>
                 <p className="text-[10px] text-muted-foreground/70 mt-1">{kpi.sub}</p>
@@ -125,7 +166,7 @@ export default function AnalyticsPage() {
           <div className="bg-card-elevated border border-border rounded-xl p-5">
             <h2 className="text-sm font-semibold text-foreground mb-4">Contest Participation</h2>
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={participationData}>
+              <BarChart data={userParticipationData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                 <XAxis dataKey="month" tick={{ fill: '#6B7A8A', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: '#6B7A8A', fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -138,7 +179,7 @@ export default function AnalyticsPage() {
           <div className="bg-card-elevated border border-border rounded-xl p-5">
             <h2 className="text-sm font-semibold text-foreground mb-4">Accuracy Trend</h2>
             <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={accuracyData}>
+              <AreaChart data={userAccuracyData}>
                 <defs>
                   <linearGradient id="accGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
@@ -161,8 +202,8 @@ export default function AnalyticsPage() {
             <h2 className="text-sm font-semibold text-foreground mb-4">Language Usage</h2>
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
-                <Pie data={languageData} cx="50%" cy="50%" innerRadius={50} outerRadius={75} dataKey="value" paddingAngle={3}>
-                  {languageData.map((entry, index) => (
+                <Pie data={userLanguageData} cx="50%" cy="50%" innerRadius={50} outerRadius={75} dataKey="value" paddingAngle={3}>
+                  {userLanguageData.map((entry: any, index: number) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -170,7 +211,7 @@ export default function AnalyticsPage() {
               </PieChart>
             </ResponsiveContainer>
             <div className="flex flex-wrap gap-2 mt-2">
-              {languageData.map((l) => (
+              {userLanguageData.map((l: any) => (
                 <div key={l.name} className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full" style={{ background: l.color }} />
                   <span className="text-xs text-muted-foreground">{l.name} {l.value}%</span>
@@ -182,7 +223,7 @@ export default function AnalyticsPage() {
           <div className="bg-card-elevated border border-border rounded-xl p-5">
             <h2 className="text-sm font-semibold text-foreground mb-4">Problems by Difficulty</h2>
             <div className="space-y-4 mt-2">
-              {difficultyData.map((d) => (
+              {userDifficultyData.map((d: any) => (
                 <div key={d.difficulty}>
                   <div className="flex justify-between text-xs mb-1.5">
                     <span className={`font-medium ${d.difficulty === 'Easy' ? 'text-emerald-400' : d.difficulty === 'Medium' ? 'text-amber-400' : 'text-red-400'}`}>
@@ -204,7 +245,7 @@ export default function AnalyticsPage() {
           <div className="bg-card-elevated border border-border rounded-xl p-5">
             <h2 className="text-sm font-semibold text-foreground mb-4">Rank Progression</h2>
             <ResponsiveContainer width="100%" height={180}>
-              <LineChart data={rankData}>
+              <LineChart data={userRankData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                 <XAxis dataKey="contest" tick={{ fill: '#6B7A8A', fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: '#6B7A8A', fontSize: 10 }} axisLine={false} tickLine={false} reversed />
@@ -220,7 +261,7 @@ export default function AnalyticsPage() {
           <div className="xl:col-span-2 bg-card-elevated border border-border rounded-xl p-5">
             <h2 className="text-sm font-semibold text-foreground mb-4">Performance by Topic</h2>
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={topicData} layout="vertical">
+              <BarChart data={userTopicData} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
                 <XAxis type="number" tick={{ fill: '#6B7A8A', fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis dataKey="topic" type="category" tick={{ fill: '#6B7A8A', fontSize: 11 }} axisLine={false} tickLine={false} width={60} />
@@ -234,7 +275,7 @@ export default function AnalyticsPage() {
           <div className="bg-card-elevated border border-border rounded-xl p-5">
             <h2 className="text-sm font-semibold text-foreground mb-4">Skill Radar</h2>
             <ResponsiveContainer width="100%" height={220}>
-              <RadarChart data={skillRadar}>
+              <RadarChart data={userSkillRadar}>
                 <PolarGrid stroke="rgba(255,255,255,0.06)" />
                 <PolarAngleAxis dataKey="subject" tick={{ fill: '#6B7A8A', fontSize: 10 }} />
                 <Radar name="Skills" dataKey="A" stroke="#0EA5E9" fill="#0EA5E9" fillOpacity={0.2} strokeWidth={2} />
@@ -251,7 +292,7 @@ export default function AnalyticsPage() {
               {Array.from({ length: 52 }, (_, week) => (
                 <div key={week} className="flex flex-col gap-1">
                   {Array.from({ length: 7 }, (_, day) => {
-                    const cell = heatmapData.find((h) => h.week === week && h.day === day);
+                    const cell = userHeatmapData.find((h: any) => h.week === week && h.day === day);
                     const count = cell?.count ?? 0;
                     return (
                       <div

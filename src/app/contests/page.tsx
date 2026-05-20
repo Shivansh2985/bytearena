@@ -189,9 +189,12 @@ export default function ContestsPage() {
                   {c.registered ? '✓ Registered' : 'Register Now'}
                 </button>
               ) : (
-                <button className="w-full py-2 rounded-lg text-xs font-semibold border border-border text-muted-foreground hover:text-foreground hover:border-sky-500/30 transition-colors">
-                  View Results
-                </button>
+                <Link href={`/live-contest-workspace/${c.id}`} className="block w-full">
+                  <button className="w-full py-2 rounded-lg text-xs font-semibold border border-border text-muted-foreground hover:text-foreground hover:border-sky-500/30 transition-colors flex items-center justify-center gap-1.5">
+                    View Questions & Submissions
+                    <ArrowRight size={12} />
+                  </button>
+                </Link>
               )}
             </div>
           ))}

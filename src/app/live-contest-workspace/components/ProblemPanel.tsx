@@ -1,7 +1,7 @@
 'use client';
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, BookOpen, Lightbulb, MessageSquare, Tag } from 'lucide-react';
-import type { Problem } from './WorkspaceShell';
+import { ChevronLeft, ChevronRight, BookOpen, Lightbulb, MessageSquare, Tag, Activity } from 'lucide-react';
+import type { Language, Problem } from './WorkspaceShell';
 import Badge from '@/components/ui/Badge';
 import Icon from '@/components/ui/AppIcon';
 
@@ -11,13 +11,36 @@ interface ProblemPanelProps {
   onNext: () => void;
   onPrev: () => void;
   totalProblems: number;
+  isCompleted?: boolean;
+  submissions?: any[];
+  onViewCode?: (code: string, language: Language, userName: string, isCorrect: boolean) => void;
 }
 
-type Tab = 'problem' | 'editorial' | 'notes';
+type Tab = 'problem' | 'editorial' | 'notes' | 'submissions';
 
-export default function ProblemPanel({ problem, onNext, onPrev, totalProblems }: ProblemPanelProps) {
+export default function ProblemPanel({
+  problem,
+  onNext,
+  onPrev,
+  totalProblems,
+  isCompleted = false,
+  submissions = [],
+  onViewCode
+}: ProblemPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>('problem');
   const [notes, setNotes] = useState('');
+
+  const problemSubmissions = submissions.filter((s: any) => s.questionId === problem.id);
+
+  const tabsList: { id: Tab; label: string; icon: React.ElementType }[] = [
+    { id: 'problem', label: 'Problem', icon: BookOpen },
+    { id: 'editorial', label: 'Editorial', icon: Lightbulb },
+    { id: 'notes', label: 'Notes', icon: MessageSquare },
+  ];
+
+  if (isCompleted) {
+    tabsList.push({ id: 'submissions', label: 'Submissions', icon: Activity });
+  }
 
   return (
     <div className="h-full flex flex-col bg-secondary/30 border-r border-border">
@@ -49,11 +72,7 @@ export default function ProblemPanel({ problem, onNext, onPrev, totalProblems }:
 
       {/* Tabs */}
       <div className="flex border-b border-border flex-shrink-0">
-        {([
-          { id: 'problem', label: 'Problem', icon: BookOpen },
-          { id: 'editorial', label: 'Editorial', icon: Lightbulb },
-          { id: 'notes', label: 'Notes', icon: MessageSquare },
-        ] as { id: Tab; label: string; icon: React.ElementType }[]).map((tab) => {
+        {tabsList.map((tab) => {
           const Icon = tab.icon;
           return (
             <button
@@ -201,6 +220,49 @@ export default function ProblemPanel({ problem, onNext, onPrev, totalProblems }:
               style={{ minHeight: '200px' }}
             />
             <p className="text-xs text-muted-foreground mt-2">Notes are saved locally and not submitted.</p>
+          </div>
+        )}
+
+        {activeTab === 'submissions' && (
+          <div className="p-4 space-y-4">
+            <h3 className="text-sm font-semibold text-foreground">Participant Submissions</h3>
+            {problemSubmissions.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No submissions found for this question yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {problemSubmissions.map((s: any) => {
+                  const isCorrect = s.status.toLowerCase() === 'accepted';
+                  return (
+                    <div key={s.id} className="bg-card-elevated border border-border rounded-xl p-3 flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-semibold text-foreground">{s.user?.name || s.user?.username || 'Anonymous'}</p>
+                          <p className="text-[10px] text-muted-foreground">{new Date(s.createdAt).toLocaleTimeString()}</p>
+                        </div>
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                          isCorrect 
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                            : 'bg-red-500/10 border-red-500/30 text-red-400'
+                        }`}>
+                          {s.status}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between mt-1 pt-2 border-t border-border/50">
+                        <span className="text-[10px] uppercase text-muted-foreground font-mono">{s.language}</span>
+                        {onViewCode && (
+                          <button
+                            onClick={() => onViewCode(s.code, s.language, s.user?.name || s.user?.username || 'User', isCorrect)}
+                            className="text-[11px] font-medium text-sky-400 hover:text-sky-300 transition-colors"
+                          >
+                            View Code
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>

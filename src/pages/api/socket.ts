@@ -44,29 +44,48 @@ export default function SocketHandler(req: NextApiRequest, res: NextApiResponseS
         socket.to(roomId).emit('user-joined', { userId, socketId: socket.id, role });
       });
 
+      // Admin joins
+      socket.on('admin-joined', () => {
+        socket.join('admin-room');
+        // Broadcast to everyone else that an admin joined so they can initiate WebRTC
+        socket.broadcast.emit('admin-joined', { adminSocketId: socket.id });
+      });
+
       // WebRTC Signaling: Offer
-      socket.on('webrtc-offer', (data: { offer: any, toSocketId: string, fromUserId: string }) => {
-        socket.to(data.toSocketId).emit('webrtc-offer', {
-          offer: data.offer,
-          fromSocketId: socket.id,
-          fromUserId: data.fromUserId,
-        });
+      socket.on('webrtc-offer', (data: { offer: any, toSocketId?: string, toRoom?: string, fromUserId?: string, userId?: string }) => {
+        const target = data.toSocketId || data.toRoom;
+        if (target) {
+          socket.to(target).emit('webrtc-offer', {
+            offer: data.offer,
+            fromSocketId: socket.id,
+            fromUserId: data.fromUserId || data.userId,
+            userId: data.userId || data.fromUserId,
+          });
+        }
       });
 
       // WebRTC Signaling: Answer
-      socket.on('webrtc-answer', (data: { answer: any, toSocketId: string }) => {
-        socket.to(data.toSocketId).emit('webrtc-answer', {
-          answer: data.answer,
-          fromSocketId: socket.id,
-        });
+      socket.on('webrtc-answer', (data: { answer: any, toSocketId?: string, toRoom?: string, userId?: string }) => {
+        const target = data.toSocketId || data.toRoom;
+        if (target) {
+          socket.to(target).emit('webrtc-answer', {
+            answer: data.answer,
+            fromSocketId: socket.id,
+            userId: data.userId,
+          });
+        }
       });
 
       // WebRTC Signaling: ICE Candidate
-      socket.on('webrtc-ice-candidate', (data: { candidate: any, toSocketId: string }) => {
-        socket.to(data.toSocketId).emit('webrtc-ice-candidate', {
-          candidate: data.candidate,
-          fromSocketId: socket.id,
-        });
+      socket.on('webrtc-ice-candidate', (data: { candidate: any, toSocketId?: string, toRoom?: string, userId?: string }) => {
+        const target = data.toSocketId || data.toRoom;
+        if (target) {
+          socket.to(target).emit('webrtc-ice-candidate', {
+            candidate: data.candidate,
+            fromSocketId: socket.id,
+            userId: data.userId,
+          });
+        }
       });
 
       // Global Submission Logging

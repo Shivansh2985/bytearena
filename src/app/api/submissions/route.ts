@@ -59,28 +59,40 @@ export async function GET(req: Request) {
     const contestId = searchParams.get('contestId');
     const questionId = searchParams.get('questionId');
 
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    let isContestCompleted = false;
+    if (contestId) {
+      const contest = await prisma.contest.findUnique({ where: { id: contestId } });
+      if (contest) {
+        isContestCompleted = new Date(contest.endTime).getTime() <= Date.now();
+      }
+    }
+
     const whereClause: any = {};
     if (questionId) whereClause.questionId = questionId;
     if (contestId) {
       whereClause.question = { contestId: contestId };
     }
 
-    // If not admin, only get own submissions
-    if (userId) {
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (user?.role !== 'ADMIN') {
-        whereClause.userId = user?.id;
-      }
-    } else {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Only restrict to own submissions if it is not an admin AND not a completed contest
+    if (user.role !== 'ADMIN' && !isContestCompleted) {
+      whereClause.userId = user.id;
     }
 
     const submissions = await prisma.submission.findMany({
       where: whereClause,
       orderBy: { createdAt: 'desc' },
       include: {
-        question: { select: { title: true } },
-        user: { select: { username: true } }
+        question: { select: { id: true, title: true, points: true, difficulty: true, contestId: true, contest: { select: { title: true } } } },
+        user: { select: { username: true, name: true } }
       }
     });
 

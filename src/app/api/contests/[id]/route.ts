@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await auth();
     const email = session?.user?.email;
@@ -18,9 +18,9 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
     const { id } = await params;
 
-    // Auto-register participant if they are logged in and not an admin
+    // Auto-register participant if they are logged in
     let hasEnded = false;
-    if (userId && !isAdmin) {
+    if (userId) {
       const existingParticipant = await prisma.contestParticipant.findFirst({
         where: { userId, contestId: id }
       });

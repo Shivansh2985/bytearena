@@ -16,6 +16,8 @@ interface Submission {
   memory: string;
   submittedAt: string;
   score?: number;
+  problemId?: string;
+  contestId?: string;
 }
 
 const submissions: Submission[] = [
@@ -41,15 +43,67 @@ export default function SubmissionsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [submissionsList, setSubmissionsList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = submissions.filter((s) => {
+  React.useEffect(() => {
+    fetch('/api/submissions')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setSubmissionsList(data);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch submissions:', err);
+        setLoading(false);
+      });
+  }, []);
+
+  const mappedSubmissions: Submission[] = submissionsList.map((s: any) => {
+    // Map backend status to lowercase statusConfig keys
+    let statusKey: Submission['status'] = 'wrong_answer';
+    const statusLower = s.status?.toLowerCase();
+    if (statusLower === 'accepted') statusKey = 'accepted';
+    else if (statusLower === 'wrong_answer' || statusLower === 'wa') statusKey = 'wrong_answer';
+    else if (statusLower === 'time_limit_exceeded' || statusLower === 'tle') statusKey = 'tle';
+    else if (statusLower === 'runtime_error' || statusLower === 're') statusKey = 'runtime_error';
+    else if (statusLower === 'compile_error' || statusLower === 'ce') statusKey = 'compile_error';
+
+    return {
+      id: s.id,
+      problem: s.question?.title || 'Unknown Problem',
+      problemId: s.questionId,
+      contestId: s.question?.contestId,
+      contest: s.question?.contest?.title || 'Practice',
+      language: s.language || 'C++',
+      status: statusKey,
+      time: s.runtime ? `${s.runtime}ms` : '—',
+      memory: s.memory ? `${s.memory}MB` : '—',
+      submittedAt: new Date(s.createdAt).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      score: s.score || undefined,
+      code: s.code
+    };
+  });
+
+  const filtered = mappedSubmissions.filter((s) => {
     const matchSearch = s.problem.toLowerCase().includes(search.toLowerCase()) ||
       s.contest.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === 'all' || s.status === statusFilter;
     return matchSearch && matchStatus;
   });
 
-  const acCount = submissions.filter((s) => s.status === 'accepted').length;
+  const acCount = mappedSubmissions.filter((s) => s.status === 'accepted').length;
+
+  const totalCount = mappedSubmissions.length;
+  const waCount = mappedSubmissions.filter((s) => s.status === 'wrong_answer').length;
+  const tleReCount = mappedSubmissions.filter((s) => s.status === 'tle' || s.status === 'runtime_error').length;
 
   return (
     <AppLayout currentPath="/submissions" role="student">
@@ -68,10 +122,10 @@ export default function SubmissionsPage() {
         {/* Quick stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: 'Total', value: '1,531', color: 'sky' },
-            { label: 'Accepted', value: '1,047', color: 'emerald' },
-            { label: 'Wrong Answer', value: '312', color: 'red' },
-            { label: 'TLE / RE', value: '172', color: 'amber' },
+            { label: 'Total', value: totalCount.toLocaleString(), color: 'sky' },
+            { label: 'Accepted', value: acCount.toLocaleString(), color: 'emerald' },
+            { label: 'Wrong Answer', value: waCount.toLocaleString(), color: 'red' },
+            { label: 'TLE / RE', value: tleReCount.toLocaleString(), color: 'amber' },
           ].map((s) => (
             <div key={s.label} className="bg-card-elevated border border-border rounded-xl p-4 text-center">
               <p className={`text-2xl font-bold metric-value text-${s.color}-400`}>{s.value}</p>
@@ -152,12 +206,19 @@ export default function SubmissionsPage() {
                   {expanded === s.id && (
                     <div className="px-5 pb-4 bg-muted/10 border-t border-border/50">
                       <div className="flex items-center gap-3 pt-3">
-                        <Link href="/live-contest-workspace">
-                          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-sky-300 text-xs font-medium hover:bg-primary/20 transition-colors">
+                        {s.contestId && s.problemId ? (
+                          <Link href={`/live-contest-workspace/${s.contestId}?problemId=${s.problemId}&viewSubmissionId=${s.id}`}>
+                            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-sky-300 text-xs font-medium hover:bg-primary/20 transition-colors">
+                              <Code2 size={12} />
+                              View Code
+                            </button>
+                          </Link>
+                        ) : (
+                          <button disabled className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/50 border border-border text-muted-foreground text-xs font-medium cursor-not-allowed">
                             <Code2 size={12} />
                             View Code
                           </button>
-                        </Link>
+                        )}
                         <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-muted-foreground text-xs font-medium hover:text-foreground transition-colors">
                           Resubmit
                         </button>

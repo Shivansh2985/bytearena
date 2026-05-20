@@ -4,7 +4,6 @@ import dynamic from 'next/dynamic';
 import { Copy, RotateCcw, Settings2, Video, VideoOff, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Language, Problem } from './WorkspaceShell';
-import ToastProvider from '@/components/ui/Toast';
 
 // Dynamically import CodeMirror to avoid SSR issues
 const CodeMirror = dynamic(
@@ -23,6 +22,13 @@ interface CodeEditorPanelProps {
   problem: Problem;
   cameraBlocked: boolean;
   onToggleCamera: () => void;
+  isReadOnly?: boolean;
+  reviewBanner?: {
+    userName: string;
+    isCorrect: boolean;
+    language: string;
+    onBackToOwn: () => void;
+  } | null;
 }
 
 const fontSizes = ['12px', '13px', '14px', '15px', '16px'];
@@ -34,6 +40,8 @@ export default function CodeEditorPanel({
   problem,
   cameraBlocked,
   onToggleCamera,
+  isReadOnly = false,
+  reviewBanner = null,
 }: CodeEditorPanelProps) {
   const [fontSize, setFontSize] = useState('13px');
   const [showSettings, setShowSettings] = useState(false);
@@ -57,7 +65,29 @@ export default function CodeEditorPanel({
 
   return (
     <div className="h-full flex flex-col bg-[#0A0A12] relative">
-      <ToastProvider />
+
+      {reviewBanner && (
+        <div className="bg-sky-500/10 border-b border-sky-500/20 px-4 py-2 flex items-center justify-between flex-shrink-0 animate-fade-in">
+          <p className="text-xs text-sky-300 flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block animate-pulse" />
+            Viewing <strong>{reviewBanner.userName}</strong>'s {reviewBanner.language} code ({reviewBanner.isCorrect ? 'Correct' : 'Incorrect'})
+          </p>
+          <button
+            onClick={reviewBanner.onBackToOwn}
+            className="text-[10px] font-semibold bg-sky-500/20 text-sky-300 border border-sky-500/30 rounded-md px-2.5 py-1 hover:bg-sky-500/30 transition-colors"
+          >
+            Back to my code
+          </button>
+        </div>
+      )}
+
+      {!reviewBanner && isReadOnly && (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 flex-shrink-0">
+          <p className="text-xs text-amber-200">
+            <strong>Review Mode:</strong> This contest is completed. Your past code has been restored.
+          </p>
+        </div>
+      )}
 
       {/* Editor toolbar */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-secondary/50 flex-shrink-0">
@@ -179,17 +209,19 @@ export default function CodeEditorPanel({
         <CodeMirror
           value={code}
           onChange={(val) => {
-            if (val !== code) onChange(val);
+            if (!isReadOnly && val !== code) onChange(val);
           }}
+          readOnly={isReadOnly}
+          editable={!isReadOnly}
           height="100%"
           theme="dark"
           basicSetup={{
             lineNumbers: true,
             foldGutter: true,
             bracketMatching: true,
-            autocompletion: true,
+            autocompletion: !isReadOnly,
             highlightActiveLine: true,
-            indentOnInput: true,
+            indentOnInput: !isReadOnly,
             tabSize,
           }}
           style={{

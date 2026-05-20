@@ -5,17 +5,10 @@ import { AlertTriangle, X, Eye, ShieldAlert, Camera } from 'lucide-react';
 interface ProctoringOverlayProps {
   warning: boolean;
   cameraBlocked: boolean;
+  warningLogs?: any[];
 }
 
-const warningLogs = [
-  { id: 'log-1', time: '10:23:14', type: 'focus_loss', message: 'Tab focus lost — switched to another window', severity: 'high' },
-  { id: 'log-2', time: '10:18:02', type: 'camera', message: 'Camera feed stable — face detected', severity: 'info' },
-  { id: 'log-3', time: '10:15:44', type: 'fullscreen', message: 'Fullscreen mode active', severity: 'info' },
-  { id: 'log-4', time: '10:12:31', type: 'focus_loss', message: 'Keyboard shortcut detected: Cmd+Tab', severity: 'medium' },
-  { id: 'log-5', time: '10:09:00', type: 'start', message: 'Proctoring session started', severity: 'info' },
-];
-
-export default function ProctoringOverlay({ warning, cameraBlocked }: ProctoringOverlayProps) {
+export default function ProctoringOverlay({ warning, cameraBlocked, warningLogs = [] }: ProctoringOverlayProps) {
   const [logOpen, setLogOpen] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
@@ -93,7 +86,7 @@ export default function ProctoringOverlay({ warning, cameraBlocked }: Proctoring
             <div className="p-4 space-y-2 max-h-72 overflow-y-auto">
               {warningLogs.map((log) => (
                 <div
-                  key={log.id}
+                  key={log.id || Math.random().toString()}
                   className={`flex items-start gap-3 p-3 rounded-lg border ${
                     log.severity === 'high' ?'bg-red-500/8 border-red-500/20'
                       : log.severity === 'medium' ?'bg-amber-500/8 border-amber-500/20' :'bg-muted/20 border-border'

@@ -61,6 +61,8 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 export default function BattlegroundPage() {
   const [activeTab, setActiveTab] = useState<'rating' | 'skills'>('rating');
   const [user, setUser] = useState<any>(null);
+  const [topUsersList, setTopUsersList] = useState<any[]>([]);
+  const [analytics, setAnalytics] = useState<any>(null);
 
   React.useEffect(() => {
     fetch('/api/users/me')
@@ -71,6 +73,24 @@ export default function BattlegroundPage() {
         }
       })
       .catch((err) => console.error('Failed to fetch battleground user:', err));
+
+    fetch('/api/users/leaderboard?take=5')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setTopUsersList(data);
+        }
+      })
+      .catch((err) => console.error('Failed to fetch global leaderboard for battleground:', err));
+
+    fetch('/api/users/me/analytics')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.error) {
+          setAnalytics(data);
+        }
+      })
+      .catch((err) => console.error('Failed to fetch analytics for battleground:', err));
   }, []);
 
   const displayName = user?.name || (user?.firstName ? `${user.firstName} ${user.lastName || ''}` : '') || 'User';
@@ -95,11 +115,56 @@ export default function BattlegroundPage() {
     ? 'Participate to rank'
     : `Top ${Math.max(0.1, 100 - ((displayRating - 800) / 2200) * 100).toFixed(1)}%`;
 
+  const userRatingHistory = user?.ratingHistory
+    ? [...user.ratingHistory].reverse().map((rh: any, idx: number) => ({
+        contest: `C#${idx + 1}`,
+        rating: rh.ratingAfter || rh.rating
+      }))
+    : ratingHistory;
+
+  const userSkillData = analytics?.skillRadar || skillData;
+
+  const userBadges = badges.map((b) => {
+    const hasEarned = user?.badges?.some((ub: any) => ub.name.toLowerCase() === b.label.toLowerCase()) || 
+                      (b.id === 'b1' && submissionsCount > 0) || 
+                      (b.id === 'b3' && contestsCount > 0);
+    return { ...b, earned: hasEarned };
+  });
+
+  const userRecentContests = user?.contests?.map((c: any) => {
+    const rh = user?.ratingHistory?.find((h: any) => h.contestId === c.contestId);
+    const change = rh ? rh.ratingChange : (c.rank ? Math.max(-50, 100 - c.rank * 3) : 0);
+    return {
+      id: c.id,
+      name: c.contest.title,
+      rank: c.rank || 1,
+      total: c.contest._count?.participants || 10,
+      change: change,
+      date: new Date(c.contest.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    };
+  }) || recentContests;
+
+  const mergedLeaderboard = topUsersList.length > 0
+    ? topUsersList.map((u: any, idx: number) => ({
+        rank: idx + 1,
+        name: u.name,
+        rating: u.rating,
+        avatar: u.avatar,
+        isMe: u.id === user?.id
+      }))
+    : [
+        { rank: 1, name: 'Arjun Mehta', rating: 3210, avatar: 'AM', isMe: false },
+        { rank: 2, name: 'Priya Sharma', rating: 3180, avatar: 'PS', isMe: false },
+        { rank: 3, name: 'Karan Patel', rating: 3050, avatar: 'KP', isMe: false },
+        { rank: 4, name: 'Sneha Rao', rating: 2980, avatar: 'SR', isMe: false },
+        { rank: 5, name: displayName, rating: displayRating, avatar: initials, isMe: true },
+      ].sort((a, b) => b.rating - a.rating).map((u, i) => ({ ...u, rank: i + 1 }));
+
   const dynamicStats = [
-    { label: 'Current Rating', value: displayRating.toLocaleString(), icon: Zap, color: 'sky', change: contestsCount > 0 ? '+87 this month' : 'No rating change' },
+    { label: 'Current Rating', value: displayRating.toLocaleString(), icon: Zap, color: 'sky', change: contestsCount > 0 ? `${user?.ratingHistory?.[0]?.ratingChange >= 0 ? '+' : ''}${user?.ratingHistory?.[0]?.ratingChange || 0} this month` : 'No rating change' },
     { label: 'Global Rank', value: globalRank, icon: Trophy, color: 'amber', change: rankPercent },
-    { label: 'Contests Won', value: contestsCount > 0 ? '1' : '0', icon: Award, color: 'emerald', change: `${contestsCount} total entered` },
-    { label: 'Best Streak', value: contestsCount > 0 ? '1 day' : '0 days', icon: Flame, color: 'orange', change: contestsCount > 0 ? 'Current: 1 day' : 'No contests played' },
+    { label: 'Contests Entered', value: contestsCount.toString(), icon: Award, color: 'emerald', change: `${submissionsCount} submissions total` },
+    { label: 'Coding Streak', value: `${analytics?.kpis?.find((k: any) => k.label === 'Current Streak')?.value || '0 days'}`, icon: Flame, color: 'orange', change: `Active days: ${analytics?.kpis?.find((k: any) => k.label === 'Active Days')?.value || '0'}` },
   ];
 
   return (
@@ -162,7 +227,7 @@ export default function BattlegroundPage() {
 
             {activeTab === 'rating' ? (
               <ResponsiveContainer width="100%" height={260}>
-                <AreaChart data={ratingHistory}>
+                <AreaChart data={userRatingHistory}>
                   <defs>
                     <linearGradient id="ratingGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#0EA5E9" stopOpacity={0.3} />
@@ -178,7 +243,7 @@ export default function BattlegroundPage() {
               </ResponsiveContainer>
             ) : (
               <ResponsiveContainer width="100%" height={260}>
-                <RadarChart data={skillData}>
+                <RadarChart data={userSkillData}>
                   <PolarGrid stroke="rgba(255,255,255,0.06)" />
                   <PolarAngleAxis dataKey="subject" tick={{ fill: '#6B7A8A', fontSize: 11 }} />
                   <Radar name="Skills" dataKey="A" stroke="#0EA5E9" fill="#0EA5E9" fillOpacity={0.2} strokeWidth={2} />
@@ -194,41 +259,32 @@ export default function BattlegroundPage() {
               Global Leaderboard
             </h2>
             <div className="space-y-2">
-              {[
-                { name: 'Arjun Mehta', rating: 3210, avatar: 'AM', isMe: false },
-                { name: 'Priya Sharma', rating: 3180, avatar: 'PS', isMe: false },
-                { name: 'Karan Patel', rating: 3050, avatar: 'KP', isMe: false },
-                { name: 'Sneha Rao', rating: 2980, avatar: 'SR', isMe: false },
-                { name: displayName, rating: displayRating, avatar: initials, isMe: true },
-              ]
-                .sort((a, b) => b.rating - a.rating)
-                .map((u, i) => ({ ...u, rank: i + 1 }))
-                .map((userObj) => (
-                  <div
-                    key={userObj.rank}
-                    className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${
-                      userObj.isMe
-                        ? 'bg-sky-500/10 border border-sky-500/20' : 'hover:bg-muted/30'
-                    }`}
-                  >
-                    <span className={`text-sm font-bold w-5 text-center ${
-                      userObj.rank === 1 ? 'text-amber-400' : userObj.rank === 2 ? 'text-slate-300' : userObj.rank === 3 ? 'text-amber-600' : 'text-muted-foreground'
-                    }`}>
-                      {userObj.rank}
-                    </span>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${
-                      userObj.isMe ? 'bg-gradient-to-br from-sky-500 to-cyan-600' : 'bg-gradient-to-br from-slate-600 to-slate-700'
-                    }`}>
-                      {userObj.avatar}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium truncate ${userObj.isMe ? 'text-sky-300' : 'text-foreground'}`}>
-                        {userObj.name} {userObj.isMe && '(You)'}
-                      </p>
-                    </div>
-                    <span className="text-sm font-bold text-foreground metric-value">{userObj.rating.toLocaleString()}</span>
+              {mergedLeaderboard.map((userObj) => (
+                <div
+                  key={userObj.rank}
+                  className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${
+                    userObj.isMe
+                      ? 'bg-sky-500/10 border border-sky-500/20' : 'hover:bg-muted/30'
+                  }`}
+                >
+                  <span className={`text-sm font-bold w-5 text-center ${
+                    userObj.rank === 1 ? 'text-amber-400' : userObj.rank === 2 ? 'text-slate-300' : userObj.rank === 3 ? 'text-amber-600' : 'text-muted-foreground'
+                  }`}>
+                    {userObj.rank}
+                  </span>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${
+                    userObj.isMe ? 'bg-gradient-to-br from-sky-500 to-cyan-600' : 'bg-gradient-to-br from-slate-600 to-slate-700'
+                  }`}>
+                    {userObj.avatar}
                   </div>
-                ))}
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium truncate ${userObj.isMe ? 'text-sky-300' : 'text-foreground'}`}>
+                      {userObj.name} {userObj.isMe && '(You)'}
+                    </p>
+                  </div>
+                  <span className="text-sm font-bold text-foreground metric-value">{userObj.rating.toLocaleString()}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -242,7 +298,7 @@ export default function BattlegroundPage() {
               Recent Contests
             </h2>
             <div className="space-y-2">
-              {recentContests.map((c) => (
+              {userRecentContests.map((c: any) => (
                 <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/30 transition-colors cursor-pointer">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{c.name}</p>
@@ -263,7 +319,7 @@ export default function BattlegroundPage() {
               ))}
             </div>
           </div>
-
+ 
           {/* Badges */}
           <div className="bg-card-elevated border border-border rounded-xl p-5">
             <h2 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
@@ -271,7 +327,7 @@ export default function BattlegroundPage() {
               Achievement Badges
             </h2>
             <div className="grid grid-cols-3 gap-3">
-              {badges.map((badge) => (
+              {userBadges.map((badge) => (
                 <div
                   key={badge.id}
                   className={`flex flex-col items-center gap-2 p-3 rounded-xl border text-center transition-all ${
