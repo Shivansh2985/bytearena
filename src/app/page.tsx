@@ -19,6 +19,8 @@ function PublicNav() {
   const { data: session, status } = useSession();
   const isLoaded = status !== "loading";
   const userId = session?.user?.id;
+  const isAdminUser = session?.user?.role === 'ADMIN' || session?.user?.email === 'admin@bytearena.dev';
+  const dashboardHref = isAdminUser ? "/admin/dashboard" : "/user-dashboard";
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
 
@@ -58,7 +60,7 @@ function PublicNav() {
           {mounted && isDark ? <Sun size={18} /> : <Moon size={18} />}
         </button>
         {!isLoaded ? null : userId ? (
-          <Link href="/user-dashboard" className="bg-primary px-4 py-2 rounded-md text-sm font-semibold text-white hover:opacity-90 transition-opacity">Go to Dashboard</Link>
+          <Link href={dashboardHref} className="bg-primary px-4 py-2 rounded-md text-sm font-semibold text-white hover:opacity-90 transition-opacity">Go to Dashboard</Link>
         ) : (
           <>
             <Link href="/sign-up-login" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Sign in</Link>
@@ -128,6 +130,8 @@ function Hero() {
   const { data: session, status } = useSession();
   const isLoaded = status !== "loading";
   const userId = session?.user?.id;
+  const isAdminUser = session?.user?.role === 'ADMIN' || session?.user?.email === 'admin@bytearena.dev';
+  const dashboardHref = isAdminUser ? "/admin/dashboard" : "/user-dashboard";
   
   return (
     <section className="relative overflow-hidden bg-galaxy">
@@ -160,7 +164,7 @@ function Hero() {
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
             {userId ? (
               <Link
-                href="/user-dashboard"
+                href={dashboardHref}
                 className="group inline-flex h-12 items-center rounded-md bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-glow hover:opacity-90 transition-all hover:scale-[1.03]"
               >
                 Go to Dashboard
@@ -360,6 +364,8 @@ function CTA() {
   const { data: session, status } = useSession();
   const isLoaded = status !== "loading";
   const userId = session?.user?.id;
+  const isAdminUser = session?.user?.role === 'ADMIN' || session?.user?.email === 'admin@bytearena.dev';
+  const dashboardHref = isAdminUser ? "/admin/dashboard" : "/user-dashboard";
   return (
     <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
       <div className="relative overflow-hidden rounded-3xl border border-border/60 glass p-10 md:p-16 text-center">
@@ -372,7 +378,7 @@ function CTA() {
           </p>
           <div className="mt-8 flex items-center justify-center gap-3">
             {userId ? (
-              <Link href="/user-dashboard" className="inline-flex h-12 items-center rounded-md bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-glow hover:opacity-90 hover:scale-105 transition-all">
+              <Link href={dashboardHref} className="inline-flex h-12 items-center rounded-md bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-glow hover:opacity-90 hover:scale-105 transition-all">
                 Go to Dashboard
               </Link>
             ) : (

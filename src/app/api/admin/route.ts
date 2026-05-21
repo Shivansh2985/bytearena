@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 
+export const dynamic = 'force-dynamic';
+
 async function isAdmin() {
   const session = await auth();
   const email = session?.user?.email;
@@ -75,10 +77,10 @@ export async function GET(req: Request) {
           warnings,
           cameraStatus: latestSnap ? 'active' : 'away',
           tabSwitches,
-          lastActivity: latestSnap ? new Date(latestSnap.createdAt).toLocaleTimeString() : 'Unknown',
+          lastActivity: latestSnap ? latestSnap.createdAt.toISOString() : 'Unknown',
           contest: p.contest.title,
           latestSnapshot: latestSnap?.imageUrl || null,
-          logs: userLogs.map(l => ({ time: new Date(l.createdAt).toLocaleTimeString(), event: l.description }))
+          logs: userLogs.map(l => ({ time: l.createdAt.toISOString(), event: l.description }))
         };
       });
 

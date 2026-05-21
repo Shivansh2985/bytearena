@@ -38,11 +38,15 @@ const cameraConfig = {
 };
 
 export default function AdminProctoringPage() {
-  const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
+  const [selectedParticipantId, setSelectedParticipantId] = useState<string | null>(null);
   const [contestFilter, setContestFilter] = useState<string>('all');
   const [socket, setSocket] = useState<Socket | null>(null);
   const [liveParticipants, setLiveParticipants] = useState<Participant[]>([]);
   const [participantStreams, setParticipantStreams] = useState<Record<string, MediaStream>>({});
+
+  const selectedParticipant = selectedParticipantId 
+    ? liveParticipants.find(p => p.id === selectedParticipantId) || null 
+    : null;
   const videoRef = useRef<HTMLVideoElement>(null);
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
 
@@ -228,7 +232,7 @@ export default function AdminProctoringPage() {
                     return (
                       <div
                         key={p.id}
-                        onClick={() => setSelectedParticipant(isSelected ? null : p)}
+                        onClick={() => setSelectedParticipantId(isSelected ? null : p.id)}
                         className={`p-4 cursor-pointer transition-colors hover:bg-muted/10 ${
                           isSelected ? 'bg-primary/5 border-l-2 border-l-primary' : 'border-l-2 border-l-transparent'
                         }`}
@@ -291,7 +295,7 @@ export default function AdminProctoringPage() {
                       <p className="text-sm text-muted-foreground">{selectedParticipant.contest}</p>
                     </div>
                   </div>
-                  <button onClick={() => setSelectedParticipant(null)} className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors">
+                  <button onClick={() => setSelectedParticipantId(null)} className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors">
                     <X size={18} />
                   </button>
                 </div>
@@ -304,7 +308,7 @@ export default function AdminProctoringPage() {
                         <Monitor size={16} className="text-primary" /> Live Feed
                       </h3>
                       <div className="flex items-center gap-2">
-                        {selectedParticipant.cameraStatus === 'active' && (
+                        {(selectedParticipant.cameraStatus === 'active' || !!participantStreams[selectedParticipant.userId]) && (
                           <span className="flex items-center gap-1.5 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded text-xs font-medium text-red-400">
                             <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> LIVE
                           </span>
@@ -317,10 +321,10 @@ export default function AdminProctoringPage() {
                     
                     {/* Live camera feed container */}
                     <div className={`w-full aspect-video rounded-xl flex flex-col items-center justify-center gap-3 border overflow-hidden relative shadow-inner ${
-                      selectedParticipant.cameraStatus === 'active' ? 'bg-slate-950 border-emerald-500/20' :
+                      (selectedParticipant.cameraStatus === 'active' || !!participantStreams[selectedParticipant.userId]) ? 'bg-slate-950 border-emerald-500/20' :
                       selectedParticipant.cameraStatus === 'blocked'? 'bg-red-950/20 border-red-500/20' : 'bg-amber-950/20 border-amber-500/20'
                     }`}>
-                      {selectedParticipant.cameraStatus === 'active' ? (
+                      {(selectedParticipant.cameraStatus === 'active' || !!participantStreams[selectedParticipant.userId]) ? (
                         <>
                           <video 
                             autoPlay 
@@ -366,7 +370,7 @@ export default function AdminProctoringPage() {
                       </div>
                       <div className="bg-muted/20 border border-border rounded-lg p-2.5 flex items-center justify-between">
                         <span className="text-[10px] text-muted-foreground">Last Activity</span>
-                        <span className="text-xs font-medium text-foreground">{selectedParticipant.lastActivity}</span>
+                        <span className="text-xs font-medium text-foreground">{selectedParticipant.lastActivity && selectedParticipant.lastActivity !== 'Unknown' ? new Date(selectedParticipant.lastActivity).toLocaleTimeString() : 'Unknown'}</span>
                       </div>
                     </div>
 
@@ -400,7 +404,7 @@ export default function AdminProctoringPage() {
                             isWarning ? 'bg-amber-500/5 border-amber-500/20' : 'bg-muted/10 border-border'
                           }`}>
                             <span className={`text-xs font-mono whitespace-nowrap mt-0.5 ${isWarning ? 'text-amber-400/80' : 'text-muted-foreground'}`}>
-                              {log.time}
+                              {new Date(log.time).toLocaleTimeString()}
                             </span>
                             <div className="flex-1">
                               <p className={`text-sm ${isWarning ? 'text-amber-200' : 'text-foreground/90'}`}>

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import AppLogo from '@/components/ui/AppLogo';
 import ToastProvider from '@/components/ui/Toast';
-import { signIn } from 'next-auth/react';
+import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
 function GoogleIcon({ size = 16 }: { size?: number }) {
@@ -66,12 +66,23 @@ function StarField() {
 }
 
 export default function AuthScreen() {
+  const { data: session, status } = useSession();
   const [mode, setMode] = useState<AuthMode>('login');
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const router = useRouter();
+
+  React.useEffect(() => {
+    if (status === 'authenticated' && session?.user) {
+      if (session.user.role === 'ADMIN' || session.user.email === 'admin@bytearena.dev') {
+        router.replace('/admin/dashboard');
+      } else {
+        router.replace('/user-dashboard');
+      }
+    }
+  }, [session, status, router]);
 
   const loginForm = useForm<LoginForm>({ defaultValues: { email: '', password: '' } });
   const signupForm = useForm<SignupForm>({ defaultValues: { fullName: '', email: '', password: '', confirmPassword: '', agreeTerms: false } });
