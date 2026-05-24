@@ -19,7 +19,7 @@ function PublicNav() {
   const { data: session, status } = useSession();
   const isLoaded = status !== "loading";
   const userId = session?.user?.id;
-  const isAdminUser = session?.user?.role === 'ADMIN' || session?.user?.email === 'admin@bytearena.dev';
+  const isAdminUser = session?.user?.role === 'ADMIN';
   const dashboardHref = isAdminUser ? "/admin/dashboard" : "/user-dashboard";
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
@@ -130,7 +130,7 @@ function Hero() {
   const { data: session, status } = useSession();
   const isLoaded = status !== "loading";
   const userId = session?.user?.id;
-  const isAdminUser = session?.user?.role === 'ADMIN' || session?.user?.email === 'admin@bytearena.dev';
+  const isAdminUser = session?.user?.role === 'ADMIN';
   const dashboardHref = isAdminUser ? "/admin/dashboard" : "/user-dashboard";
   
   return (
@@ -364,7 +364,7 @@ function CTA() {
   const { data: session, status } = useSession();
   const isLoaded = status !== "loading";
   const userId = session?.user?.id;
-  const isAdminUser = session?.user?.role === 'ADMIN' || session?.user?.email === 'admin@bytearena.dev';
+  const isAdminUser = session?.user?.role === 'ADMIN';
   const dashboardHref = isAdminUser ? "/admin/dashboard" : "/user-dashboard";
   return (
     <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">

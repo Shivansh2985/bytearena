@@ -21,9 +21,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
-        if (credentials.email === 'admin@bytearena.dev' && credentials.password === 'Admin@2026') {
-          return { id: 'admin-123', email: 'admin@bytearena.dev', name: 'Administrator', role: 'ADMIN' };
-        }
+        // DB query happens below to fetch real role
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },
@@ -47,6 +45,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
+    async signIn({ user, account, profile }) {
+      if (user?.email === 'admin@bytearena.dev') {
+        const dbUser = await prisma.user.findUnique({ where: { email: user.email } });
+        if (dbUser && dbUser.role !== 'ADMIN') {
+          await prisma.user.update({
+            where: { email: user.email },
+            data: { role: 'ADMIN' }
+          });
+        }
+      }
+      return true;
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;

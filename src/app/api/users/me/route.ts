@@ -10,24 +10,6 @@ export async function GET(req: Request) {
 
     if (!userId && !email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    if (email === 'admin@bytearena.dev') {
-      return NextResponse.json({
-        id: 'admin-123',
-        email: 'admin@bytearena.dev',
-        name: 'Administrator',
-        role: 'ADMIN',
-        rating: 9999,
-        skills: ['System Design', 'React', 'Node.js'],
-        projects: [],
-        badges: [],
-        ratingHistory: [],
-        languageStats: [],
-        _count: { submissions: 0, contests: 0 },
-        globalRank: 1,
-        acceptedSubmissions: 0
-      });
-    }
-
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {

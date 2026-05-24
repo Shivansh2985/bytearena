@@ -410,8 +410,10 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
   const requestPermissions = async () => {
     if (isCompleted) return;
     try {
+      await document.documentElement.requestFullscreen();
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       setPermissionsGranted(true);
+      setIsFullscreen(true);
       setMediaStream(stream);
       
       // Start taking snapshots
@@ -441,7 +443,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       }, 5 * 60 * 1000); // Every 5 minutes
 
     } catch (err) {
-      alert("Camera and Microphone permissions are required to start the contest!");
+      alert("Camera, Microphone, and Fullscreen permissions are required to start the contest!");
     }
   };
 
@@ -651,6 +653,32 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
     };
   }, [contestId, isCompleted]);
 
+  const handleEndContest = useCallback(async (forced = false) => {
+    if (!forced && !confirm('Are you sure you want to end the contest? You will not be able to return.')) return;
+    if (!contestId) {
+      window.location.href = '/user-dashboard';
+      return;
+    }
+    await fetch(`/api/contests/${contestId}/end`, { method: 'POST' });
+    window.location.href = '/user-dashboard';
+  }, [contestId]);
+
+  useEffect(() => {
+    if (isCompleted || !permissionsGranted) return;
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        alert('You exited fullscreen mode. Your contest has been automatically submitted to prevent cheating.');
+        handleEndContest(true);
+      } else {
+        setIsFullscreen(true);
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, [isCompleted, permissionsGranted, handleEndContest]);
+
   const handleMouseMoveH = useCallback((e: MouseEvent) => {
     if (!isDraggingH.current || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
@@ -772,7 +800,17 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
         setRunResult(data);
         if (data.status === 'accepted') {
           setProblemStatuses((prev) => ({ ...prev, [prob.id]: 'answered' }));
-          setMyRank((r) => Math.max(1, r - Math.floor(Math.random() * 15 + 5)));
+          
+          fetch(`/api/contests/${contestId}`)
+            .then(res => res.json())
+            .then(contestData => {
+              if(contestData && contestData.participants) {
+                const myParticipantIndex = contestData.participants.findIndex((p: any) => p.user.id === currentUser?.id);
+                if(myParticipantIndex !== -1) {
+                  setMyRank(myParticipantIndex + 1);
+                }
+              }
+            }).catch(err => console.error(err));
         } else {
           setProblemStatuses((prev) => ({ ...prev, [prob.id]: 'attempted' }));
         }
@@ -820,15 +858,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
     }));
   };
 
-  const handleEndContest = async () => {
-    if (!confirm('Are you sure you want to end the contest? You will not be able to return.')) return;
-    if (!contestId) {
-      window.location.href = '/user-dashboard';
-      return;
-    }
-    await fetch(`/api/contests/${contestId}/end`, { method: 'POST' });
-    window.location.href = '/user-dashboard';
-  };
+  // handleEndContest is now defined earlier.
 
   return (
     <div

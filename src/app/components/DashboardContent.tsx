@@ -14,7 +14,7 @@ export default function DashboardContent() {
       .then((res) => res.json())
       .then((data) => {
         if (!data.error) {
-          if (data.role === 'ADMIN' || data.email === 'admin@bytearena.dev') {
+          if (data.role === 'ADMIN') {
             window.location.href = '/admin/dashboard';
             return;
           }

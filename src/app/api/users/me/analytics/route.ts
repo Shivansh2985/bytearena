@@ -170,16 +170,14 @@ export async function GET(req: Request) {
       month, contests
     }));
 
-    // 5. Accuracy Trend (by week) - we approximate by generating trend based on recent data
-    // Fetch last 8 weeks of submissions using grouped count to avoid loading all
     const accuracyData: { week: string; accuracy: number }[] = [];
-    const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+    const overallAcc = totalSubmissions > 0 ? Math.round((acceptedSubmissions / totalSubmissions) * 100) : 0;
     
-    // Fallback to random if not enough data, just for visual testing
+    // Using overall accuracy instead of random trends
     for (let i = 7; i >= 0; i--) {
       accuracyData.push({
         week: `W${8 - i}`,
-        accuracy: Math.floor(Math.random() * 20 + 60) // mock accuracy
+        accuracy: overallAcc
       });
     }
 

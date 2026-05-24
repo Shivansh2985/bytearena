@@ -7,7 +7,6 @@ export const dynamic = 'force-dynamic';
 async function isAdmin() {
   const session = await auth();
   const email = session?.user?.email;
-  if (email === 'admin@bytearena.dev') return true;
 
   const userId = session?.user?.id;
   if (!userId) return false;

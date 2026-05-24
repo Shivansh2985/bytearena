@@ -79,9 +79,7 @@ export async function POST(req: Request) {
     const userId = session?.user?.id;
     let isAdmin = false;
 
-    if (email === 'admin@bytearena.dev') {
-      isAdmin = true;
-    } else if (userId) {
+    if (userId) {
       const user = await prisma.user.findUnique({ where: { id: userId } });
       if (user?.role === 'ADMIN') isAdmin = true;
     }

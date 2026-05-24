@@ -23,6 +23,8 @@ export async function POST(req: Request) {
     const [firstName, ...lastNameParts] = fullName.split(' ');
     const lastName = lastNameParts.join(' ');
 
+    const role = email === 'admin@bytearena.dev' ? 'ADMIN' : 'USER';
+
     const user = await prisma.user.create({
       data: {
         email,
@@ -30,6 +32,7 @@ export async function POST(req: Request) {
         name: fullName,
         firstName,
         lastName,
+        role,
       },
     });
 

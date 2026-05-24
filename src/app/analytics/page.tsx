@@ -63,7 +63,7 @@ const skillRadar = [
 const heatmapData = Array.from({ length: 52 }, (_, week) =>
   Array.from({ length: 7 }, (_, day) => ({
     week, day,
-    count: Math.random() > 0.4 ? Math.floor(Math.random() * 5) : 0,
+    count: 0,
   }))
 ).flat();
 

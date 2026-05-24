@@ -76,7 +76,7 @@ export default function AuthScreen() {
 
   React.useEffect(() => {
     if (status === 'authenticated' && session?.user) {
-      if (session.user.role === 'ADMIN' || session.user.email === 'admin@bytearena.dev') {
+      if (session.user.role === 'ADMIN') {
         router.replace('/admin/dashboard');
       } else {
         router.replace('/user-dashboard');
@@ -110,13 +110,11 @@ export default function AuthScreen() {
       if (result?.error) {
         toast.error('Invalid email or password');
       } else {
-        if (data.email === 'admin@bytearena.dev') {
-          toast.success('Admin login successful!');
-          router.push('/admin/dashboard');
-        } else {
-          toast.success('Welcome back to ByteArena!');
-          router.push('/user-dashboard');
-        }
+        // Admin redirect logic should be based on session role now, but here we don't have the full session yet synchronously.
+        // Wait, the router will handle the redirect if session updates. But we can check role if we fetch it.
+        // For simplicity, let's just push to user-dashboard, and the useEffect will bounce them to admin if role is ADMIN.
+        toast.success('Login successful!');
+        router.push('/user-dashboard');
       }
     } catch (err: any) {
       toast.error('An error occurred during login');
