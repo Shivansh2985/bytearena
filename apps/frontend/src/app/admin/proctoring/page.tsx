@@ -430,7 +430,7 @@ export default function AdminProctoringPage() {
                     livekitTokens[selectedContestId!] ? (
                       <LiveKitRoom
                         video={false}
-                        audio={true}
+                        audio={false}
                         connect={true}
                         token={livekitTokens[selectedContestId!]}
                         serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL || 'wss://your-livekit-server.livekit.cloud'}

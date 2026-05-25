@@ -6,10 +6,6 @@ import AppLayout from '@/components/AppLayout';
 import { Users, Code2, Clock, CheckCircle, XCircle, ChevronDown, ChevronUp, Trophy } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
 import Link from 'next/link';
-import { LiveKitRoom, VideoConference, RoomAudioRenderer } from '@livekit/components-react';
-import '@livekit/components-styles';
-
-// We no longer need the custom LiveVideo component since LiveKit provides VideoConference.
 
 export default function AdminContestDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: contestId } = React.use(params);
@@ -18,8 +14,6 @@ export default function AdminContestDetailsPage({ params }: { params: Promise<{ 
   const [expandedSubmission, setExpandedSubmission] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [subPage, setSubPage] = useState(1);
-
-  const [livekitToken, setLivekitToken] = useState<string | null>(null);
 
   useEffect(() => {
     if (!contestId) return;
@@ -32,21 +26,6 @@ export default function AdminContestDetailsPage({ params }: { params: Promise<{ 
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [contestId]);
-
-  useEffect(() => {
-    if (loading || !contest) return;
-    
-    // Fetch a LiveKit token for the admin to view all streams in this contest's room
-    apiFetch(`/api/proctoring/token?room=contest-${contestId}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.token) {
-          setLivekitToken(data.token);
-        }
-      })
-      .catch(console.error);
-      
-  }, [loading, contest, contestId]);
 
   if (loading) {
     return (
@@ -247,36 +226,6 @@ export default function AdminContestDetailsPage({ params }: { params: Promise<{ 
             </div>
           </div>
         </div>
-
-        {/* Live Proctoring Streams */}
-        <div className="bg-card-elevated border border-border rounded-xl p-5 mt-6">
-          <h2 className="text-base font-semibold flex items-center gap-2 mb-4">
-            <Users size={18} className="text-pink-400" />
-            Live Proctoring Streams
-          </h2>
-          <div className="mb-4">
-            {livekitToken ? (
-              <div className="h-[400px] w-full rounded-xl overflow-hidden border border-border/50">
-                <LiveKitRoom
-                  video={true}
-                  audio={true}
-                  token={livekitToken}
-                  serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL || 'wss://your-livekit-server.livekit.cloud'}
-                  data-lk-theme="default"
-                  style={{ height: '100%' }}
-                >
-                  <VideoConference />
-                  <RoomAudioRenderer />
-                </LiveKitRoom>
-              </div>
-            ) : (
-              <div className="h-[200px] w-full rounded-xl border border-border/50 flex items-center justify-center bg-black/50 text-muted-foreground text-sm">
-                Connecting to live feeds...
-              </div>
-            )}
-          </div>
-        </div>
-
 
       </div>
     </AppLayout>

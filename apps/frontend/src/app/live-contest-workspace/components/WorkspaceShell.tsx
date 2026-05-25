@@ -8,7 +8,7 @@ import OutputPanel from './OutputPanel';
 import ProctoringOverlay from './ProctoringOverlay';
 import ToastProvider from '@/components/ui/Toast';
 import { io, Socket } from 'socket.io-client';
-import { Room, RoomEvent, ConnectionState } from 'livekit-client';
+import { Room, RoomEvent, ConnectionState, Track } from 'livekit-client';
 import { useSession } from 'next-auth/react';
 
 export type ProblemStatus = 'unattempted' | 'attempted' | 'answered';
@@ -526,9 +526,21 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
            
            await lkRoom.connect(livekitUrl, data.token, { autoSubscribe: false });
            
-           await lkRoom.localParticipant.setCameraEnabled(true);
-           await lkRoom.localParticipant.setMicrophoneEnabled(true);
-           console.log("Camera and Microphone enabled and published to LiveKit.");
+           if (mediaStream) {
+             const videoTrack = mediaStream.getVideoTracks()[0];
+             if (videoTrack) {
+               await lkRoom.localParticipant.publishTrack(videoTrack, { name: 'camera', source: Track.Source.Camera });
+             }
+             const audioTrack = mediaStream.getAudioTracks()[0];
+             if (audioTrack) {
+               await lkRoom.localParticipant.publishTrack(audioTrack, { name: 'microphone', source: Track.Source.Microphone });
+             }
+             console.log("Camera and Microphone enabled and published to LiveKit from existing MediaStream.");
+           } else {
+             await lkRoom.localParticipant.setCameraEnabled(true);
+             await lkRoom.localParticipant.setMicrophoneEnabled(true);
+             console.log("Camera and Microphone enabled and published to LiveKit.");
+           }
         }
       } catch(e) {
         console.error('LiveKit connection error:', e);
