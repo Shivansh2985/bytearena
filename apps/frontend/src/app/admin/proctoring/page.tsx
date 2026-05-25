@@ -5,7 +5,7 @@ import AppLayout from '@/components/AppLayout';
 import { Eye, AlertTriangle, Camera, CameraOff, Monitor, ShieldOff, Users, Activity, X, CheckCircle, ChevronRight, Video } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { useSession } from 'next-auth/react';
-import { LiveKitRoom, useTracks, VideoTrack, AudioTrack } from '@livekit/components-react';
+import { LiveKitRoom, useTracks, VideoTrack, AudioTrack, useConnectionState } from '@livekit/components-react';
 import { Track } from 'livekit-client';
 import '@livekit/components-styles';
 
@@ -15,13 +15,17 @@ function SingleParticipantVideo({ identity }: { identity: string }) {
   const track = tracks.find(t => t.participant.identity === identity);
   const audioTrack = audioTracks.find(t => t.participant.identity === identity);
   
+  const connectionState = useConnectionState();
+  
   if (!track) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-black text-muted-foreground text-sm flex-col gap-2">
-        <div className="w-8 h-8 rounded-full bg-muted/20 flex items-center justify-center animate-pulse">
-          <Camera size={14} className="text-muted-foreground" />
+        <div className={`w-8 h-8 rounded-full ${connectionState === 'disconnected' ? 'bg-red-500/20' : 'bg-muted/20 animate-pulse'} flex items-center justify-center`}>
+          <Camera size={14} className={connectionState === 'disconnected' ? 'text-red-400' : 'text-muted-foreground'} />
         </div>
-        Connecting...
+        {connectionState === 'connecting' ? 'Connecting...' : 
+         connectionState === 'disconnected' ? 'Stream Offline / Failed to Connect' : 'Waiting for Video Track...'}
+        <span className="text-[10px] opacity-50 uppercase tracking-widest">{connectionState}</span>
       </div>
     );
   }
@@ -143,9 +147,18 @@ export default function AdminProctoringPage() {
     
     setSocket(newSocket);
     
-    return () => {
+    const cleanup = () => {
       console.log('Admin socket disconnecting:', newSocket.id);
-      newSocket.disconnect();
+      if (newSocket.connected) {
+        newSocket.disconnect();
+      }
+    };
+    
+    window.addEventListener('beforeunload', cleanup);
+    
+    return () => {
+      window.removeEventListener('beforeunload', cleanup);
+      cleanup();
       setSocket(null);
     };
   }, [accessToken]);

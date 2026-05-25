@@ -209,6 +209,7 @@ import { createClient } from 'redis';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import { RedisPubSubEvent } from '@bytearena/shared-types';
+import { RoomServiceClient } from 'livekit-server-sdk';
 
 dotenv.config();
 
@@ -222,6 +223,12 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:4028';
 const JWT_SECRET =
   process.env.JWT_SECRET ||
   'your_secure_jwt_secret_change_this_in_production';
+
+const LIVEKIT_API_URL = process.env.LIVEKIT_API_URL || 'https://your-livekit-server.livekit.cloud';
+const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || 'devkey';
+const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || 'secret';
+
+const roomService = new RoomServiceClient(LIVEKIT_API_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
 
 const pubClient = createClient({ url: REDIS_URL });
 const subClient = pubClient.duplicate();
@@ -258,6 +265,7 @@ interface SocketData {
   userId: string;
   role: Role;
   email?: string;
+  activeContestId?: string;
 }
 
 interface AuthTokenPayload extends JwtPayload {
@@ -321,6 +329,33 @@ app.get('/health', (_req, res) => {
   });
 });
 
+// Periodic heartbeat sweeper for stale connections (every 30 seconds)
+setInterval(async () => {
+  try {
+    const keys = await pubClient.keys('presence:*');
+    const now = Date.now();
+    for (const key of keys) {
+      const dataStr = await pubClient.get(key);
+      if (dataStr) {
+        const data = JSON.parse(dataStr);
+        // If last seen is older than 60 seconds
+        if (now - data.lastSeen > 60000) {
+           const userId = key.split(':')[1];
+           console.log(`Sweeping stale user ${userId}`);
+           await pubClient.del(key);
+           
+           // Remove from LiveKit room if we have a way to know the contest,
+           // or we can let LiveKit's own timeout handle it.
+           // Disconnect any lingering socket
+           io.in(`user:${userId}`).disconnectSockets();
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Heartbeat sweep failed', err);
+  }
+}, 30000);
+
 io.on('connection', (socket) => {
   const { userId, role } = socket.data as SocketData;
 
@@ -328,6 +363,17 @@ io.on('connection', (socket) => {
     socket.disconnect(true);
     return;
   }
+
+  // Duplicate socket prevention
+  io.in(`user:${userId}`).fetchSockets().then(sockets => {
+    for (const s of sockets) {
+      if (s.id !== socket.id) {
+         console.log(`Force disconnecting older socket ${s.id} for user ${userId}`);
+         s.emit('force-disconnect', 'Another device connected');
+         s.disconnect(true);
+      }
+    }
+  }).catch(err => console.error(err));
 
   socket.join(`user:${userId}`);
   console.log(`User ${userId} (${role}) connected. Socket: ${socket.id}`);
@@ -339,6 +385,7 @@ io.on('connection', (socket) => {
 
   socket.on('join-contest', (contestId: string) => {
     socket.join(`contest:${contestId}`);
+    socket.data.activeContestId = contestId;
     console.log(`User ${userId} joined contest:${contestId}`);
 
     io.to('admin-room').emit('contestant:joined', {
@@ -439,6 +486,27 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', async () => {
     console.log(`User ${userId} disconnected.`);
+
+    if (socket.data.activeContestId) {
+      // Remove stale participant from LiveKit Room immediately
+      try {
+        await roomService.removeParticipant(`contest-${socket.data.activeContestId}`, userId);
+        console.log(`Removed participant ${userId} from LiveKit room contest-${socket.data.activeContestId}`);
+      } catch (err: any) {
+        // Ignored if participant is already gone
+      }
+      
+      // Auto-delete room if it becomes empty (optional logic, could also rely on LiveKit emptyTimeout)
+      try {
+        const participants = await roomService.listParticipants(`contest-${socket.data.activeContestId}`);
+        if (participants.length === 0) {
+           await roomService.deleteRoom(`contest-${socket.data.activeContestId}`);
+           console.log(`Auto-deleted empty LiveKit room contest-${socket.data.activeContestId}`);
+        }
+      } catch (err: any) {
+        // Ignored
+      }
+    }
 
     try {
       await pubClient.del(`presence:${userId}`);

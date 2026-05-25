@@ -54,6 +54,7 @@
     "@bytearena/database": "*",
     "@codemirror/lang-cpp": "^6.0.2",
     "@codemirror/lang-java": "^6.0.1",
+    "@codemirror/lang-javascript": "^6.2.5",
     "@codemirror/lang-python": "^6.1.6",
     "@codemirror/theme-one-dark": "^6.1.2",
     "@dhiwise/component-tagger": "^1.0.15",

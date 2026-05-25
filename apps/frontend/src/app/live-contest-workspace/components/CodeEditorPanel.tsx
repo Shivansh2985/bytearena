@@ -5,6 +5,11 @@ import { Copy, RotateCcw, Settings2, Video, VideoOff, AlertTriangle } from 'luci
 import { toast } from 'sonner';
 import type { Language, Problem } from './WorkspaceShell';
 
+import { cpp } from '@codemirror/lang-cpp';
+import { python } from '@codemirror/lang-python';
+import { java } from '@codemirror/lang-java';
+import { javascript } from '@codemirror/lang-javascript';
+
 // Dynamically import CodeMirror to avoid SSR issues
 const CodeMirror = dynamic(
   () => import('@uiw/react-codemirror').then((m) => m.default),
@@ -62,6 +67,10 @@ export default function CodeEditorPanel({
   // Extensions loaded dynamically to avoid SSR
   const getExtensions = () => {
     const exts: any[] = [];
+    if (language === 'cpp') exts.push(cpp());
+    else if (language === 'python') exts.push(python());
+    else if (language === 'java') exts.push(java());
+    else if (language === 'javascript') exts.push(javascript({ jsx: true, typescript: true }));
     return exts;
   };
 

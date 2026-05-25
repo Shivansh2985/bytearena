@@ -8,7 +8,7 @@ import OutputPanel from './OutputPanel';
 import ProctoringOverlay from './ProctoringOverlay';
 import ToastProvider from '@/components/ui/Toast';
 import { io, Socket } from 'socket.io-client';
-import { Room } from 'livekit-client';
+import { Room, RoomEvent, ConnectionState } from 'livekit-client';
 import { useSession } from 'next-auth/react';
 
 export type ProblemStatus = 'unattempted' | 'attempted' | 'answered';
@@ -465,18 +465,55 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
     
     let lkRoom: Room | null = null;
 
+    const cleanup = () => {
+      console.log('Cleaning up realtime connections...');
+      if (lkRoom) {
+        mediaStream.getTracks().forEach(t => {
+          t.stop();
+          if (lkRoom?.localParticipant) {
+             lkRoom.localParticipant.unpublishTrack(t);
+          }
+        });
+        lkRoom.disconnect();
+        lkRoom = null;
+      }
+      if (socket.connected) {
+        socket.emit('leave-contest', contestId);
+        socket.disconnect();
+      }
+    };
+
+    // Attach to beforeunload so we cleanup properly when tab closes/refreshes
+    window.addEventListener('beforeunload', cleanup);
+
     socket.on('connect', () => {
       socket.emit('join-contest', contestId);
     });
 
     socket.on('stream-request', async () => {
-      if (lkRoom) return; // Already connected
+      if (lkRoom && lkRoom.state === ConnectionState.Connected) return; // Already connected
+      
       try {
         const res = await apiFetch(`/api/proctoring/token?room=contest-${contestId}`);
         const data = await res.json();
+        
         if (data.token) {
-           lkRoom = new Room();
+           lkRoom = new Room({
+             adaptiveStream: true,
+             dynacast: true,
+           });
+           
+           lkRoom.on(RoomEvent.ConnectionStateChanged, (state) => {
+             console.log(`LiveKit Connection State: ${state}`);
+           });
+           
+           lkRoom.on(RoomEvent.Disconnected, (reason) => {
+             console.log(`LiveKit Disconnected:`, reason);
+           });
+
            const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'wss://your-livekit-server.livekit.cloud';
+           
+           // Connect with exponential backoff (handled natively by livekit-client with maxRetries)
            await lkRoom.connect(livekitUrl, data.token, { autoSubscribe: false });
            
            // Publish existing tracks from the media stream
@@ -497,9 +534,8 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
     });
 
     return () => {
-      socket.emit('leave-contest', contestId);
-      socket.disconnect();
-      if (lkRoom) lkRoom.disconnect();
+      window.removeEventListener('beforeunload', cleanup);
+      cleanup();
     };
   }, [isCompleted, mediaStream, currentUser, contestId, accessToken]);
 
