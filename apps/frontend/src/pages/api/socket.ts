@@ -1,6 +1,8 @@
 import { Server as NetServer } from 'http';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { Server as ServerIO } from 'socket.io';
+import { createAdapter } from '@socket.io/redis-adapter';
+import { createClient } from 'redis';
 
 export const config = {
   api: {
@@ -16,7 +18,7 @@ type NextApiResponseServerIO = NextApiResponse & {
   };
 };
 
-export default function SocketHandler(req: NextApiRequest, res: NextApiResponseServerIO) {
+export default async function SocketHandler(req: NextApiRequest, res: NextApiResponseServerIO) {
   if (!res.socket.server.io) {
     console.log('New Socket.io server...');
     // adapt Next's net Server to http Server
@@ -29,6 +31,18 @@ export default function SocketHandler(req: NextApiRequest, res: NextApiResponseS
         methods: ['GET', 'POST'],
       },
     });
+
+    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+    try {
+      const pubClient = createClient({ url: redisUrl });
+      const subClient = pubClient.duplicate();
+      
+      await Promise.all([pubClient.connect(), subClient.connect()]);
+      io.adapter(createAdapter(pubClient, subClient));
+      console.log('✅ Redis Adapter connected to Socket.IO');
+    } catch (err) {
+      console.warn('⚠️ Redis adapter failed to connect. Running in memory mode:', err);
+    }
     
     // Global Submission Panel memory (in a real app, use Redis)
     const recentSubmissions: any[] = [];

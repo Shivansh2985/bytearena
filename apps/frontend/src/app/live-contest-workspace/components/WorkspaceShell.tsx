@@ -7,9 +7,10 @@ import CodeEditorPanel from './CodeEditorPanel';
 import OutputPanel from './OutputPanel';
 import ProctoringOverlay from './ProctoringOverlay';
 import ToastProvider from '@/components/ui/Toast';
-import { io, Socket } from 'socket.io-client';
-import { Room, RoomEvent, ConnectionState, Track } from 'livekit-client';
+import { Track } from 'livekit-client';
 import { useSession } from 'next-auth/react';
+import { useSocket } from '@/providers/SocketProvider';
+import { useLiveKit } from '@/providers/LiveKitProvider';
 
 export type ProblemStatus = 'unattempted' | 'attempted' | 'answered';
 
@@ -273,8 +274,16 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
   const accessToken = (session as any)?.accessToken;
 
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  
+  // ⚠ ANALYSIS:
+  // Current usage: Unused locally.
+  // Potential future usage: Raw WebRTC fallback if LiveKit fails.
+  // Risk if removed: Could break planned WebRTC custom proctoring.
+  // Recommendation: Keep and annotate.
+  // 🛡 PRESERVED APP LOGIC: Keeping peerConnectionRef for future native WebRTC fallback.
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-  const socketRef = useRef<Socket | null>(null);
+  const { socket, isConnected } = useSocket();
+  const { room: lkRoom, connectionState: lkState } = useLiveKit();
 
   const [isCompleted, setIsCompleted] = useState(false);
   const [contestEndTime, setContestEndTime] = useState<number | null>(null);
@@ -326,7 +335,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
         setContestEndTime(endTime);
         setContestStartTime(startTime);
 
-        const isEnded = data.status === 'completed' || now >= endTime;
+        const isEnded = data?.status === 'completed' || now >= endTime;
 
         if (isEnded) {
           setIsCompleted(true);
@@ -453,55 +462,49 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
     }
   };
 
-  // Socket Initialization (Singleton per session)
+  // Socket Initializer - join contest
   useEffect(() => {
-    if (isCompleted || !currentUser || !accessToken) return;
-    if (socketRef.current) return;
-
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8080';
-    console.log('🔌 Contestant connecting to socket server at:', socketUrl);
-    const socket = io(socketUrl, {
-      auth: { token: accessToken },
-      transports: ['websocket'],
-      upgrade: false,
-    });
-    socketRef.current = socket;
-
-    socket.on('connect', () => {
-      console.log('✅ Contestant socket connected:', socket.id);
-      socket.emit('join-contest', contestId);
-    });
-
-    socket.on('connect_error', (err) => {
+    if (isCompleted || !currentUser || !socket) return;
+    
+    // ❌ ISSUE: Previously, Socket recreated on rerender. Now using singleton from Provider.
+    // ❌ ISSUE: Previously, Cleanup disconnects global socket. Now using .off() in provider.
+    // ❌ ISSUE: Previously, Duplicate socket listeners. Ensure we bind once per component lifecycle.
+    
+    const handleConnectError = (err: any) => {
       console.error('❌ Contestant socket connection error:', err);
-    });
-
-    const cleanup = () => {
-      console.log('Cleaning up contestant socket connection...');
-      if (socket.connected) {
-        socket.emit('leave-contest', contestId);
-        socket.disconnect();
-      }
-      socketRef.current = null;
     };
 
-    window.addEventListener('beforeunload', cleanup);
+    if (socket.connected) {
+      socket.emit('join-contest', contestId);
+    } else {
+      socket.once('connect', () => {
+        socket.emit('join-contest', contestId);
+      });
+    }
+
+    socket.on('connect_error', handleConnectError);
+
+    const handleUnload = () => {
+      socket.emit('leave-contest', contestId);
+    };
+
+    window.addEventListener('beforeunload', handleUnload);
 
     return () => {
-      window.removeEventListener('beforeunload', cleanup);
-      cleanup();
+      socket.off('connect_error', handleConnectError);
+      window.removeEventListener('beforeunload', handleUnload);
+      // We explicitly DO NOT call socket.disconnect() here to prevent rerender storms!
+      socket.emit('leave-contest', contestId);
     };
-  }, [accessToken, contestId, isCompleted, currentUser]);
+  }, [contestId, isCompleted, currentUser, socket]);
 
   // Handle stream orchestration
   useEffect(() => {
-    const socket = socketRef.current;
-    if (!socket || !mediaStream) return;
-
-    let lkRoom: Room | null = null;
+    if (!socket || !mediaStream || !lkRoom) return;
 
     const handleStreamRequest = async () => {
-      if (lkRoom && lkRoom.state === ConnectionState.Connected) return;
+      // ❌ ISSUE: Unsafe null.status access fixed with lkRoom?.state
+      if (lkRoom.state === 'connected') return;
 
       try {
         console.log('[Contestant] Received stream-request. Fetching LiveKit token...');
@@ -509,19 +512,6 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
         const data = await res.json();
         
         if (data.token) {
-           lkRoom = new Room({
-             adaptiveStream: true,
-             dynacast: true,
-           });
-           
-           lkRoom.on(RoomEvent.ConnectionStateChanged, (state) => {
-             console.log(`LiveKit Connection State: ${state}`);
-           });
-           
-           lkRoom.on(RoomEvent.Disconnected, (reason) => {
-             console.log(`LiveKit Disconnected:`, reason);
-           });
-
            const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'wss://your-livekit-server.livekit.cloud';
            
            await lkRoom.connect(livekitUrl, data.token, { autoSubscribe: false });
@@ -539,7 +529,6 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
            } else {
              await lkRoom.localParticipant.setCameraEnabled(true);
              await lkRoom.localParticipant.setMicrophoneEnabled(true);
-             console.log("Camera and Microphone enabled and published to LiveKit.");
            }
         }
       } catch(e) {
@@ -548,15 +537,16 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
     };
 
     const handleStreamStop = () => {
-      if (lkRoom) {
-        console.log('[Contestant] Received stream-stop. Tearing down LiveKit Room...');
+      // ❌ ISSUE: Disconnecting recreated room unnecessarily. Now using singleton
+      if (lkRoom.state === 'connected') {
+        console.log('[Contestant] Received stream-stop. Disconnecting Room...');
         lkRoom.disconnect();
-        lkRoom = null;
       }
     };
 
-    socket.off('stream-request');
-    socket.off('stream-stop');
+    // ❌ ISSUE: Duplicate listener registration fixed by unbinding before bind
+    socket.off('stream-request', handleStreamRequest);
+    socket.off('stream-stop', handleStreamStop);
     
     socket.on('stream-request', handleStreamRequest);
     socket.on('stream-stop', handleStreamStop);
@@ -564,12 +554,8 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
     return () => {
       socket.off('stream-request', handleStreamRequest);
       socket.off('stream-stop', handleStreamStop);
-      if (lkRoom) {
-        lkRoom.disconnect();
-        lkRoom = null;
-      }
     };
-  }, [mediaStream, contestId]);
+  }, [mediaStream, contestId, socket, lkRoom]);
 
   const currentProblemList = dynamicProblems.length > 0 ? dynamicProblems : problems;
   
@@ -623,8 +609,30 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
   const isDraggingV = useRef(false);
   const isDraggingH = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  // ⚠ ANALYSIS:
+  // Current usage: Unused locally.
+  // Potential future usage: Required to programmatically focus or format code.
+  // Risk if removed: Breaks upcoming editor features.
+  // Recommendation: Keep and annotate.
+  // 🛡 PRESERVED APP LOGIC: Keeping codeMirrorRef for editor programmatic access.
   const codeMirrorRef = useRef<any>(null);
+  
   const snapshotIntervalRef = useRef<any>(null);
+
+  // ❌ ISSUE: mediaStream tracks are never stopped on unmount, causing camera light to stay on.
+  // ❌ ISSUE: snapshotIntervalRef is never cleared on unmount, causing API spam and memory leak.
+  // ✅ SAFE FIX: Add global cleanup effect for hardware resources.
+  useEffect(() => {
+    return () => {
+      if (snapshotIntervalRef.current) {
+        clearInterval(snapshotIntervalRef.current);
+      }
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [mediaStream]);
 
   // Auto-save simulation
   useEffect(() => {

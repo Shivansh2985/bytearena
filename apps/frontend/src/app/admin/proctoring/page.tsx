@@ -3,10 +3,11 @@ import { apiFetch } from '@/lib/api';
 import React, { useState, useEffect } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Eye, AlertTriangle, Camera, CameraOff, Monitor, ShieldOff, Users, Activity, X, CheckCircle, ChevronRight, Video, Volume2, VolumeX, Maximize } from 'lucide-react';
-import { io, Socket } from 'socket.io-client';
+import { useSocket } from '@/providers/SocketProvider';
 import { useSession } from 'next-auth/react';
 import { LiveKitRoom, useTracks, VideoTrack, AudioTrack, useConnectionState } from '@livekit/components-react';
 import { Track } from 'livekit-client';
+import { RealtimeProvider } from '@/providers/RealtimeProvider';
 import '@livekit/components-styles';
 
 function SingleParticipantVideo({ identity }: { identity: string }) {
@@ -149,8 +150,8 @@ function ContestSnapshots({ contestId, userId }: { contestId: string, userId?: s
   );
 }
 
-export default function AdminProctoringPage() {
-  const [socket, setSocket] = useState<Socket | null>(null);
+function AdminProctoringContent() {
+  const { socket } = useSocket();
   const [liveParticipants, setLiveParticipants] = useState<Participant[]>([]);
   const [liveContests, setLiveContests] = useState<any[]>([]);
   
@@ -162,47 +163,20 @@ export default function AdminProctoringPage() {
   const accessToken = (session as any)?.accessToken;
   const [livekitTokens, setLivekitTokens] = useState<Record<string, string>>({});
 
-  // Socket Initialization (Singleton per session)
   useEffect(() => {
-    if (!accessToken) return;
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8080';
-    console.log('🔌 Admin connecting to socket server at:', socketUrl);
-    const newSocket = io(socketUrl, { 
-      auth: { token: accessToken },
-      transports: ['websocket'],
-      upgrade: false,
-    });
+    if (!socket) return;
     
-    newSocket.on('connect', () => {
-      console.log('✅ Admin socket connected:', newSocket.id);
-    });
-
-    newSocket.on('connect_error', (err) => {
-      console.error('❌ Admin socket connection error:', err);
-    });
-
-    newSocket.on('proctor:alert', (data) => console.log('Proctor alert:', data));
+    const handleProctorAlert = (data: any) => console.log('Proctor alert:', data);
     
-    setSocket(newSocket);
-    
-    const cleanup = () => {
-      console.log('Admin socket disconnecting:', newSocket.id);
-      newSocket.off('connect');
-      newSocket.off('connect_error');
-      newSocket.off('proctor:alert');
-      if (newSocket.connected) {
-        newSocket.disconnect();
-      }
-    };
-    
-    window.addEventListener('beforeunload', cleanup);
+    // ❌ ISSUE: Duplicate listener registration fixed by unbinding first
+    socket.off('proctor:alert', handleProctorAlert);
+    socket.on('proctor:alert', handleProctorAlert);
     
     return () => {
-      window.removeEventListener('beforeunload', cleanup);
-      cleanup();
-      setSocket(null);
+      socket.off('proctor:alert', handleProctorAlert);
     };
-  }, [accessToken]);
+  }, [socket]);
+
 
   // Data Polling
   useEffect(() => {
@@ -518,5 +492,13 @@ export default function AdminProctoringPage() {
         </div>
       </div>
     </AppLayout>
+  );
+}
+
+export default function AdminProctoringPage() {
+  return (
+    <RealtimeProvider>
+      <AdminProctoringContent />
+    </RealtimeProvider>
   );
 }

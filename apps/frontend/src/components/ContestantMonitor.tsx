@@ -2,29 +2,32 @@
 
 import { useEffect, useState } from 'react';
 import { LiveKitRoom, VideoTrack } from '@livekit/components-react';
-import { io, Socket } from 'socket.io-client';
+import { useSocket } from '@/providers/SocketProvider';
 
 export default function ContestantMonitor({ token }: { token: string }) {
   const [streamRequested, setStreamRequested] = useState(false);
   const [liveKitToken, setLiveKitToken] = useState('');
 
+  const { socket } = useSocket();
+
   useEffect(() => {
-    const socket: Socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8080', {
-      auth: { token }
-    });
+    if (!socket) return;
     
-    socket.on('stream-request', (data: { token: string }) => {
+    const handleStreamRequest = (data: { token: string }) => {
       console.log('Stream requested by admin. Starting LiveKit room...');
       setLiveKitToken(data.token);
       setStreamRequested(true);
     });
 
-    socket.on('stream-stop', () => {
+    const handleStreamStop = () => {
       console.log('Stream stopped by admin. Tearing down...');
       setStreamRequested(false);
       setLiveKitToken('');
       // The LiveKitRoom unmounts, effectively destroying tracks & peer connections.
-    });
+    };
+
+    socket.on('stream-request', handleStreamRequest);
+    socket.on('stream-stop', handleStreamStop);
 
     // Handle presence/heartbeat
     const heartbeatTimer = setInterval(() => {
@@ -35,9 +38,11 @@ export default function ContestantMonitor({ token }: { token: string }) {
 
     return () => {
       clearInterval(heartbeatTimer);
-      socket.disconnect(); // Strict cleanup rules
+      socket.off('stream-request', handleStreamRequest);
+      socket.off('stream-stop', handleStreamStop);
+      // Removed socket.disconnect() to prevent loop
     };
-  }, [token]);
+  }, [socket]);
 
   if (!streamRequested) {
     return (
