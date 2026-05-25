@@ -31,7 +31,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
         type: 'exponential',
         delay: 1000,
       },
-      removeOnComplete: true, // Prevent queue memory leaks in Redis
+      removeOnComplete: { age: 3600, count: 1000 }, // Keep for 1 hour to allow polling to fetch results
       removeOnFail: { count: 100 }, // Keep last 100 failures for debugging
     });
 

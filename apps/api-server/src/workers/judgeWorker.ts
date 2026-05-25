@@ -583,13 +583,20 @@ export const judgeWorker = new Worker(
     let maxMemory = 0;
     const testcaseResults: any[] = [];
 
-    for (const tc of testCasesToRun) {
-      const result = await executeCode(
+    const executionPromises = testCasesToRun.map(tc =>
+      executeCode(
         code,
         language,
         tc.input,
         { waitForResult: true }
-      );
+      )
+    );
+
+    const results = await Promise.all(executionPromises);
+
+    for (let i = 0; i < testCasesToRun.length; i++) {
+      const tc = testCasesToRun[i];
+      const result = results[i];
 
       if (result.status === 'compilation_error') {
         return {

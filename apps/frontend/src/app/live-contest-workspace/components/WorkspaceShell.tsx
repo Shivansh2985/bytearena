@@ -44,6 +44,7 @@ export interface RunResult {
     output: string;
     passed: boolean;
   }>;
+  actionType?: 'run' | 'submit' | 'run_custom';
 }
 
 const problems: Problem[] = [
@@ -775,7 +776,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
   };
 
   const handleRun = async () => {
-    setRunResult({ status: 'running', output: 'Queuing job...' });
+    setRunResult({ status: 'running', actionType: 'run', output: 'Queuing job...' });
     setOutputOpen(true);
     const prob = currentProblemList[currentProblem];
     if (!prob) return;
@@ -793,7 +794,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       });
       const data = await res.json();
       if (data.jobId) {
-        setRunResult({ status: 'running', output: 'Executing code...' });
+        setRunResult({ status: 'running', actionType: 'run', output: 'Executing code...' });
         pollJob(data.jobId, (result) => setRunResult(result));
       } else {
         setRunResult({ status: 'runtime_error', output: data.error || 'Unknown error' });
@@ -804,7 +805,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
   };
 
   const handleRunCustom = async (customInput: string) => {
-    setRunResult({ status: 'running', output: 'Queuing job...' });
+    setRunResult({ status: 'running', actionType: 'run_custom', output: 'Queuing job...' });
     setOutputOpen(true);
     const prob = currentProblemList[currentProblem];
     if (!prob) return;
@@ -823,7 +824,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       });
       const data = await res.json();
       if (data.jobId) {
-        setRunResult({ status: 'running', output: 'Executing custom code...' });
+        setRunResult({ status: 'running', actionType: 'run_custom', output: 'Executing custom code...' });
         pollJob(data.jobId, (result) => setRunResult(result));
       } else {
         setRunResult({ status: 'runtime_error', output: data.error || 'Unknown error' });
@@ -834,7 +835,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
   };
   
   const handleSubmit = async () => {
-    setRunResult({ status: 'running', output: 'Queuing submission...' });
+    setRunResult({ status: 'running', actionType: 'submit', output: 'Queuing submission...' });
     setOutputOpen(true);
     const prob = currentProblemList[currentProblem];
     if (!prob) return;
@@ -852,7 +853,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       });
       const data = await res.json();
       if (data.jobId) {
-        setRunResult({ status: 'running', output: 'Judging submission...' });
+        setRunResult({ status: 'running', actionType: 'submit', output: 'Judging submission...' });
         pollJob(data.jobId, (result) => {
           setRunResult(result);
           if (result.status === 'accepted') {

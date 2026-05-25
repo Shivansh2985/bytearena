@@ -88,4 +88,30 @@ router.get('/', requireAdmin, async (req: Request, res: Response) => {
   }
 });
 
+router.delete('/users/:id', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if user exists
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Prevent deleting oneself
+    if (user.id === (req as any).user?.id) {
+      return res.status(400).json({ error: 'Cannot delete your own admin account' });
+    }
+
+    await prisma.user.delete({
+      where: { id }
+    });
+
+    return res.json({ success: true, message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 export default router;

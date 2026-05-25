@@ -101,7 +101,8 @@ export default function ContestTopBar({
   contestEndTime,
 }: ContestTopBarProps) {
   const [langOpen, setLangOpen] = useState(false);
-  const isRunning = runResult.status === 'running';
+  const isRunning = runResult.status === 'running' && runResult.actionType !== 'submit';
+  const isSubmitting = runResult.status === 'running' && runResult.actionType === 'submit';
   const videoRef = React.useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -245,10 +246,10 @@ export default function ContestTopBar({
       {!isCompleted && (
         <button
           onClick={onSubmit}
-          disabled={isRunning}
+          disabled={isSubmitting || isRunning}
           className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg btn-primary text-xs font-semibold transition-all duration-150 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isRunning ? (
+          {isSubmitting ? (
             <div className="w-3.5 h-3.5 border border-white/30 border-t-white rounded-full animate-spin" />
           ) : (
             <Send size={13} />

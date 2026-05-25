@@ -2,7 +2,7 @@
 import { apiFetch } from '@/lib/api';
 import React, { useState } from 'react';
 import AppLayout from '@/components/AppLayout';
-import { Users, Search, Shield, ShieldOff, Eye, TrendingUp, CheckCircle, XCircle, AlertTriangle, Mail,  } from 'lucide-react';
+import { Users, Search, Shield, ShieldOff, Eye, TrendingUp, CheckCircle, XCircle, AlertTriangle, Mail, Trash2 } from 'lucide-react';
 import Icon from '@/components/ui/AppIcon';
 
 
@@ -72,6 +72,29 @@ export default function AdminUsersPage() {
         setLoading(false);
       });
   }, []);
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm('Are you sure you want to permanently delete this user? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      const res = await apiFetch(`/api/admin/users/${userId}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      
+      if (res.ok && data.success) {
+        setUsers(users.filter(u => u.id !== userId));
+        setSelectedUser(null);
+      } else {
+        alert(data.error || 'Failed to delete user');
+      }
+    } catch (err) {
+      console.error('Failed to delete user', err);
+      alert('An error occurred while trying to delete the user');
+    }
+  };
 
   const filtered = users.filter((u) => {
     const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -254,6 +277,13 @@ export default function AdminUsersPage() {
                     Unblock User
                   </button>
                 )}
+                <button
+                  onClick={() => handleDeleteUser(selectedUser.id)}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border border-red-600/30 bg-red-600/10 text-red-500 text-sm font-medium hover:bg-red-600/20 hover:text-red-400 transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Delete User
+                </button>
                 <button className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border border-border text-muted-foreground text-sm font-medium hover:text-foreground transition-colors">
                   <Mail size={14} />
                   Send Message
