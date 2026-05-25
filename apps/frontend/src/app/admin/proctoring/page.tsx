@@ -17,6 +17,18 @@ function SingleParticipantVideo({ identity }: { identity: string }) {
   
   const connectionState = useConnectionState();
   
+  useEffect(() => {
+    console.log(`[Admin] Checking subscription for identity: ${identity}`);
+    if (track) {
+      console.log(`[Admin] Found Track.Source.Camera for ${identity}.`);
+      console.log(`[Admin] Track details:`, { 
+        participant: track.participant.identity, 
+        source: track.source, 
+        kind: track.publication?.kind 
+      });
+    }
+  }, [track, identity]);
+  
   if (!track) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-black text-muted-foreground text-sm flex-col gap-2">

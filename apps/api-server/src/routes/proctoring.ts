@@ -24,7 +24,12 @@ router.get('/token', requireAuth, async (req: AuthRequest, res: Response) => {
       identity,
     });
     
-    at.addGrant({ roomJoin: true, room });
+    at.addGrant({ 
+      roomJoin: true, 
+      canPublish: true, 
+      canSubscribe: true, 
+      room 
+    });
     
     const token = await at.toJwt();
     return res.json({ token });

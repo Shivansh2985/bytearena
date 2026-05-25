@@ -507,6 +507,18 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
              console.log(`LiveKit Connection State: ${state}`);
            });
            
+           lkRoom.on(RoomEvent.LocalTrackPublished, (publication) => {
+             console.log("Track published:", publication.source);
+           });
+           
+           lkRoom.on(RoomEvent.ParticipantConnected, (participant) => {
+             console.log("ParticipantConnected:", participant.identity);
+           });
+           
+           lkRoom.on(RoomEvent.ParticipantDisconnected, (participant) => {
+             console.log("ParticipantDisconnected:", participant.identity);
+           });
+           
            lkRoom.on(RoomEvent.Disconnected, (reason) => {
              console.log(`LiveKit Disconnected:`, reason);
            });
@@ -516,10 +528,10 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
            // Connect with exponential backoff (handled natively by livekit-client with maxRetries)
            await lkRoom.connect(livekitUrl, data.token, { autoSubscribe: false });
            
-           // Publish existing tracks from the media stream
-           mediaStream.getTracks().forEach(track => {
-             lkRoom!.localParticipant.publishTrack(track);
-           });
+           // Enable camera and microphone to natively publish tracks with proper source metadata
+           await lkRoom.localParticipant.setCameraEnabled(true);
+           await lkRoom.localParticipant.setMicrophoneEnabled(true);
+           console.log("Camera and Microphone enabled and published to LiveKit.");
         }
       } catch(e) {
         console.error('LiveKit connection error:', e);
