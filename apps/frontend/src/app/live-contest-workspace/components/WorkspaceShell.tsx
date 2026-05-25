@@ -453,47 +453,58 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
     }
   };
 
-  // LiveKit initialization when stream is requested
+  // Socket Initialization (Singleton per session)
   useEffect(() => {
-    if (isCompleted || !mediaStream || !currentUser) return;
+    if (isCompleted || !currentUser || !accessToken) return;
+    if (socketRef.current) return;
 
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8080';
+    console.log('🔌 Contestant connecting to socket server at:', socketUrl);
     const socket = io(socketUrl, {
-      auth: { token: accessToken }
+      auth: { token: accessToken },
+      transports: ['websocket'],
+      upgrade: false,
     });
     socketRef.current = socket;
-    
-    let lkRoom: Room | null = null;
+
+    socket.on('connect', () => {
+      console.log('✅ Contestant socket connected:', socket.id);
+      socket.emit('join-contest', contestId);
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('❌ Contestant socket connection error:', err);
+    });
 
     const cleanup = () => {
-      console.log('Cleaning up realtime connections...');
-      if (lkRoom) {
-        mediaStream.getTracks().forEach(t => {
-          t.stop();
-          if (lkRoom?.localParticipant) {
-             lkRoom.localParticipant.unpublishTrack(t);
-          }
-        });
-        lkRoom.disconnect();
-        lkRoom = null;
-      }
+      console.log('Cleaning up contestant socket connection...');
       if (socket.connected) {
         socket.emit('leave-contest', contestId);
         socket.disconnect();
       }
+      socketRef.current = null;
     };
 
-    // Attach to beforeunload so we cleanup properly when tab closes/refreshes
     window.addEventListener('beforeunload', cleanup);
 
-    socket.on('connect', () => {
-      socket.emit('join-contest', contestId);
-    });
+    return () => {
+      window.removeEventListener('beforeunload', cleanup);
+      cleanup();
+    };
+  }, [accessToken, contestId, isCompleted, currentUser]);
 
-    socket.on('stream-request', async () => {
-      if (lkRoom && lkRoom.state === ConnectionState.Connected) return; // Already connected
-      
+  // Handle stream orchestration
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket || !mediaStream) return;
+
+    let lkRoom: Room | null = null;
+
+    const handleStreamRequest = async () => {
+      if (lkRoom && lkRoom.state === ConnectionState.Connected) return;
+
       try {
+        console.log('[Contestant] Received stream-request. Fetching LiveKit token...');
         const res = await apiFetch(`/api/proctoring/token?room=contest-${contestId}`);
         const data = await res.json();
         
@@ -507,28 +518,14 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
              console.log(`LiveKit Connection State: ${state}`);
            });
            
-           lkRoom.on(RoomEvent.LocalTrackPublished, (publication) => {
-             console.log("Track published:", publication.source);
-           });
-           
-           lkRoom.on(RoomEvent.ParticipantConnected, (participant) => {
-             console.log("ParticipantConnected:", participant.identity);
-           });
-           
-           lkRoom.on(RoomEvent.ParticipantDisconnected, (participant) => {
-             console.log("ParticipantDisconnected:", participant.identity);
-           });
-           
            lkRoom.on(RoomEvent.Disconnected, (reason) => {
              console.log(`LiveKit Disconnected:`, reason);
            });
 
            const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'wss://your-livekit-server.livekit.cloud';
            
-           // Connect with exponential backoff (handled natively by livekit-client with maxRetries)
            await lkRoom.connect(livekitUrl, data.token, { autoSubscribe: false });
            
-           // Enable camera and microphone to natively publish tracks with proper source metadata
            await lkRoom.localParticipant.setCameraEnabled(true);
            await lkRoom.localParticipant.setMicrophoneEnabled(true);
            console.log("Camera and Microphone enabled and published to LiveKit.");
@@ -536,20 +533,31 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       } catch(e) {
         console.error('LiveKit connection error:', e);
       }
-    });
+    };
 
-    socket.on('stream-stop', () => {
+    const handleStreamStop = () => {
+      if (lkRoom) {
+        console.log('[Contestant] Received stream-stop. Tearing down LiveKit Room...');
+        lkRoom.disconnect();
+        lkRoom = null;
+      }
+    };
+
+    socket.off('stream-request');
+    socket.off('stream-stop');
+    
+    socket.on('stream-request', handleStreamRequest);
+    socket.on('stream-stop', handleStreamStop);
+
+    return () => {
+      socket.off('stream-request', handleStreamRequest);
+      socket.off('stream-stop', handleStreamStop);
       if (lkRoom) {
         lkRoom.disconnect();
         lkRoom = null;
       }
-    });
-
-    return () => {
-      window.removeEventListener('beforeunload', cleanup);
-      cleanup();
     };
-  }, [isCompleted, mediaStream, currentUser, contestId, accessToken]);
+  }, [mediaStream, contestId]);
 
   const currentProblemList = dynamicProblems.length > 0 ? dynamicProblems : problems;
   

@@ -388,6 +388,9 @@ function sleep(ms: number): Promise<void> {
 // ─────────────────────────────────────────────────────────────
 // Judge0 Execution
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Judge0 Execution
+// ─────────────────────────────────────────────────────────────
 async function executeCode(
   code: string,
   languageKey: string,
@@ -397,31 +400,36 @@ async function executeCode(
   const judge0Base =
     process.env.JUDGE0_API_URL || DEFAULT_JUDGE0_URL;
 
-  const rapidapiKey = process.env.JUDGE0_API_KEY;
-
+  const rapidapiKey = process.env.JUDGE0_API_KEY || process.env.RAPIDAPI_KEY;
+  const isRapidAPI = judge0Base.includes('rapidapi.com');
   const rapidapiHost = 'judge0-ce.p.rapidapi.com';
 
-  if (!rapidapiKey) {
-    throw new Error(
-      'JUDGE0_API_KEY is not set in environment variables.'
-    );
-  }
-
   const languageId = LANGUAGE_IDS[languageKey];
-
   if (!languageId) {
-    throw new Error(
-      `Unsupported language key "${languageKey}".`
-    );
+    throw new Error(`Unsupported language key "${languageKey}".`);
   }
 
   const waitForResult = !!options.waitForResult;
-
   const pollOptions = Object.assign(
     {},
     DEFAULT_POLL_OPTIONS,
     options.pollOptions || {}
   );
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (isRapidAPI) {
+    if (rapidapiKey) {
+      headers['x-rapidapi-key'] = rapidapiKey;
+    }
+    headers['x-rapidapi-host'] = rapidapiHost;
+  } else {
+    if (rapidapiKey) {
+      headers['X-Auth-Token'] = rapidapiKey;
+    }
+  }
 
   try {
     const submitUrl = `${judge0Base}/submissions${
@@ -430,37 +438,27 @@ async function executeCode(
         : '?base64_encoded=false&wait=false'
     }`;
 
+    // Add AbortController for a 10s request timeout
+    const submitController = new AbortController();
+    const submitTimeout = setTimeout(() => submitController.abort(), 10000);
+
     const submitRes = await fetch(submitUrl, {
       method: 'POST',
-
-      headers: {
-        'Content-Type': 'application/json',
-
-        'x-rapidapi-key': rapidapiKey,
-
-        'x-rapidapi-host': rapidapiHost,
-      },
-
+      headers,
       body: JSON.stringify({
         source_code: code,
-
         language_id: languageId,
-
         stdin: input,
-
         cpu_time_limit: 2,
-
         memory_limit: 128000,
       }),
+      signal: submitController.signal,
     });
+    clearTimeout(submitTimeout);
 
     const submitData = await submitRes.json();
-
     if (!submitRes.ok) {
-      throw new Error(
-        submitData.message ||
-          'Error submitting code to Judge0'
-      );
+      throw new Error(submitData.message || 'Error submitting code to Judge0');
     }
 
     if (waitForResult) {
@@ -468,31 +466,28 @@ async function executeCode(
     }
 
     const token = submitData.token;
-
     if (!token) {
-      throw new Error(
-        'No submission token returned from Judge0.'
-      );
+      throw new Error('No submission token returned from Judge0.');
     }
 
     let attempts = 0;
-
     let delay = pollOptions.initialDelayMs;
-
     let lastResult = null;
 
     while (attempts < pollOptions.maxAttempts) {
       await sleep(delay);
 
+      const statusController = new AbortController();
+      const statusTimeout = setTimeout(() => statusController.abort(), 10000);
+
       const statusRes = await fetch(
         `${judge0Base}/submissions/${token}?base64_encoded=false&fields=*`,
         {
-          headers: {
-            'x-rapidapi-key': rapidapiKey,
-            'x-rapidapi-host': rapidapiHost,
-          },
+          headers,
+          signal: statusController.signal,
         }
       );
+      clearTimeout(statusTimeout);
 
       lastResult = await statusRes.json();
 
@@ -505,7 +500,6 @@ async function executeCode(
       }
 
       attempts++;
-
       delay = Math.min(
         30000,
         Math.floor(delay * pollOptions.backoffFactor)
@@ -513,34 +507,20 @@ async function executeCode(
     }
 
     if (!lastResult) {
-      throw new Error(
-        'No result from Judge0 after polling.'
-      );
+      throw new Error('No result from Judge0 after polling.');
     }
 
     return normalizeResult(lastResult);
   } catch (err: any) {
-    console.error(
-      'Judge0 execution error:',
-      err?.message || err
-    );
-
+    console.error('Judge0 execution error:', err?.message || err);
     return {
       success: false,
-
       output: '',
-
       error: err?.message || 'Unknown error',
-
       status: 'service_error',
-
-      statusDescription:
-        err?.message || 'Unknown error',
-
+      statusDescription: err?.message || 'Unknown error',
       executionTime: 0,
-
       memory: 0,
-
       raw: null,
     };
   }
@@ -551,7 +531,6 @@ async function executeCode(
 // ─────────────────────────────────────────────────────────────
 export const judgeWorker = new Worker(
   'judgeQueue',
-
   async (job: Job) => {
     const {
       code,
@@ -563,13 +542,8 @@ export const judgeWorker = new Worker(
     } = job.data;
 
     const problem = await prisma.question.findUnique({
-      where: {
-        id: problemId,
-      },
-
-      include: {
-        testCases: true,
-      },
+      where: { id: problemId },
+      include: { testCases: true },
     });
 
     if (!problem) {
@@ -582,9 +556,7 @@ export const judgeWorker = new Worker(
       testCasesToRun = [
         {
           input: customInput || '',
-
           expectedOutput: '',
-
           isHidden: false,
         },
       ];
@@ -605,15 +577,10 @@ export const judgeWorker = new Worker(
     }
 
     let allPassed = true;
-
     let failedCase: any = null;
-
     let lastOutput = '';
-
     let maxTime = 0;
-
     let maxMemory = 0;
-
     const testcaseResults: any[] = [];
 
     for (const tc of testCasesToRun) {
@@ -621,17 +588,13 @@ export const judgeWorker = new Worker(
         code,
         language,
         tc.input,
-        {
-          waitForResult: true,
-        }
+        { waitForResult: true }
       );
 
       if (result.status === 'compilation_error') {
         return {
           status: 'compile_error',
-
           output: result.error,
-
           error: 'Compilation failed',
         };
       }
@@ -642,9 +605,7 @@ export const judgeWorker = new Worker(
       ) {
         return {
           status: 'runtime_error',
-
           output: result.error,
-
           error: 'Judge execution service error',
         };
       }
@@ -652,9 +613,7 @@ export const judgeWorker = new Worker(
       if (result.status === 'time_limit_exceeded') {
         return {
           status: 'tle',
-
           output: result.output,
-
           error: 'Time Limit Exceeded',
         };
       }
@@ -665,28 +624,16 @@ export const judgeWorker = new Worker(
       ) {
         return {
           status: 'runtime_error',
-
-          output:
-            result.output || 'Process crashed',
-
+          output: result.output || 'Process crashed',
           error: result.statusDescription,
         };
       }
 
-      maxTime = Math.max(
-        maxTime,
-        result.executionTime
-      );
-
-      maxMemory = Math.max(
-        maxMemory,
-        result.memory
-      );
+      maxTime = Math.max(maxTime, result.executionTime);
+      maxMemory = Math.max(maxMemory, result.memory);
 
       const output = result.output.trim();
-
       const expected = tc.expectedOutput.trim();
-
       lastOutput = output;
 
       const passed =
@@ -696,25 +643,18 @@ export const judgeWorker = new Worker(
 
       testcaseResults.push({
         input: tc.input,
-
         expectedOutput: expected,
-
         output,
-
         passed,
       });
 
       if (!passed) {
         allPassed = false;
-
         failedCase = {
           input: tc.input,
-
           expectedOutput: expected,
-
           output,
         };
-
         break;
       }
     }
@@ -723,23 +663,12 @@ export const judgeWorker = new Worker(
       await prisma.submission.create({
         data: {
           userId,
-
           questionId: problemId,
-
           code,
-
           language,
-
-          status: allPassed
-            ? 'ACCEPTED'
-            : 'WRONG_ANSWER',
-
-          score: allPassed
-            ? problem.points
-            : 0,
-
+          status: allPassed ? 'ACCEPTED' : 'WRONG_ANSWER',
+          score: allPassed ? problem.points : 0,
           runtime: maxTime,
-
           memory: maxMemory,
         },
       });
@@ -749,30 +678,22 @@ export const judgeWorker = new Worker(
           await prisma.contestParticipant.findFirst({
             where: {
               userId,
-
               contestId: problem.contestId,
             },
           });
 
         if (participant) {
           await prisma.contestParticipant.update({
-            where: {
-              id: participant.id,
-            },
-
+            where: { id: participant.id },
             data: {
-              score: {
-                increment: problem.points,
-              },
+              score: { increment: problem.points },
             },
           });
         } else {
           await prisma.contestParticipant.create({
             data: {
               userId,
-
               contestId: problem.contestId,
-
               score: problem.points,
             },
           });
@@ -783,51 +704,49 @@ export const judgeWorker = new Worker(
     if (allPassed) {
       return {
         status: 'accepted',
-
         output:
           action === 'run'
-            ? testcaseResults[0]?.output ||
-              lastOutput
+            ? testcaseResults[0]?.output || lastOutput
             : `All ${testCasesToRun.length} test cases passed!`,
-
         expectedOutput:
-          testCasesToRun[
-            testCasesToRun.length - 1
-          ].expectedOutput,
-
+          testCasesToRun[testCasesToRun.length - 1].expectedOutput,
         time: `${(maxTime / 1000).toFixed(2)}s`,
-
         memory: `${(maxMemory / 1024).toFixed(1)} MB`,
-
         testcaseResults,
       };
     }
 
     return {
       status: 'wrong_answer',
-
       output:
-        testcaseResults[0]?.output ||
-        failedCase?.output ||
-        '',
-
-      expectedOutput:
-        failedCase?.expectedOutput || '',
-
-      testcase:
-        failedCase?.input || '',
-
+        testcaseResults[0]?.output || failedCase?.output || '',
+      expectedOutput: failedCase?.expectedOutput || '',
+      testcase: failedCase?.input || '',
       time: `${(maxTime / 1000).toFixed(2)}s`,
-
       memory: `${(maxMemory / 1024).toFixed(1)} MB`,
-
       testcaseResults,
     };
   },
-
-  {
-    connection,
-  }
+  { connection }
 );
+
+// ─────────────────────────────────────────────────────────────
+// BullMQ Worker Event Logs
+// ─────────────────────────────────────────────────────────────
+judgeWorker.on('ready', () => {
+  console.log('✅ BullMQ worker started & ready for queue: judgeQueue');
+});
+
+judgeWorker.on('active', (job) => {
+  console.log(`📥 Job received: ${job.id} [action: ${job.data.action}, language: ${job.data.language}, problemId: ${job.data.problemId}]`);
+});
+
+judgeWorker.on('completed', (job, result) => {
+  console.log(`✨ Job completed: ${job.id} with status: ${result?.status}`);
+});
+
+judgeWorker.on('failed', (job, err) => {
+  console.error(`❌ Job failed: ${job?.id || 'unknown'} - Error:`, err);
+});
 
 console.log('✅ Judge Worker initialized');

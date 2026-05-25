@@ -149,10 +149,19 @@ export default function AdminProctoringPage() {
   useEffect(() => {
     if (!accessToken) return;
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8080';
-    const newSocket = io(socketUrl, { auth: { token: accessToken } });
+    console.log('🔌 Admin connecting to socket server at:', socketUrl);
+    const newSocket = io(socketUrl, { 
+      auth: { token: accessToken },
+      transports: ['websocket'],
+      upgrade: false,
+    });
     
     newSocket.on('connect', () => {
-      console.log('Admin socket connected:', newSocket.id);
+      console.log('✅ Admin socket connected:', newSocket.id);
+    });
+
+    newSocket.on('connect_error', (err) => {
+      console.error('❌ Admin socket connection error:', err);
     });
 
     newSocket.on('proctor:alert', (data) => console.log('Proctor alert:', data));
@@ -161,6 +170,9 @@ export default function AdminProctoringPage() {
     
     const cleanup = () => {
       console.log('Admin socket disconnecting:', newSocket.id);
+      newSocket.off('connect');
+      newSocket.off('connect_error');
+      newSocket.off('proctor:alert');
       if (newSocket.connected) {
         newSocket.disconnect();
       }
@@ -214,10 +226,16 @@ export default function AdminProctoringPage() {
   useEffect(() => {
     if (!socket || !selectedParticipantId || !selectedContestId) return;
 
+    const selectedParticipant = liveParticipants.find(p => p.id === selectedParticipantId);
+    if (!selectedParticipant) return;
+
+    const targetUserId = selectedParticipant.userId;
+
+    console.log(`[Admin] Emitting admin:request-stream for user ${targetUserId} in contest ${selectedContestId}`);
     // 1. Ask backend to notify the contestant to publish
     socket.emit('admin:request-stream', {
       contestId: selectedContestId,
-      targetUserId: selectedParticipantId
+      targetUserId: targetUserId
     });
 
     // 2. Admin needs a token to join the room
@@ -234,12 +252,13 @@ export default function AdminProctoringPage() {
 
     // 3. Cleanup: Tell contestant to stop publishing
     return () => {
+      console.log(`[Admin] Emitting admin:stop-stream for user ${targetUserId} in contest ${selectedContestId}`);
       socket.emit('admin:stop-stream', {
         contestId: selectedContestId,
-        targetUserId: selectedParticipantId
+        targetUserId: targetUserId
       });
     };
-  }, [socket, selectedParticipantId, selectedContestId]);
+  }, [socket, selectedParticipantId, selectedContestId, liveParticipants, livekitTokens]);
 
   // Derived state: Merge all live contests from /api/contests with participants data
   const contests = liveContests.map(c => {

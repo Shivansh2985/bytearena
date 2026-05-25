@@ -5,10 +5,13 @@ import { getSession } from "next-auth/react";
  * the NEXT_PUBLIC_API_URL and attaches the NextAuth JWT as a Bearer token.
  */
 export async function apiFetch(path: string, options: RequestInit = {}) {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+  const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001').replace(/\/+$/, '');
   
-  // Clean the path to avoid double slashes
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  // Clean the path to avoid double slashes and handle /api redundancy
+  let cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (baseUrl.endsWith('/api') && cleanPath.startsWith('/api/')) {
+    cleanPath = cleanPath.substring(4);
+  }
   const url = `${baseUrl}${cleanPath}`;
 
   // Get the session to extract the access token

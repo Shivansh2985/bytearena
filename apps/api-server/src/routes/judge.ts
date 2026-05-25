@@ -25,6 +25,14 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
       problemId,
       action,
       customInput
+    }, {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 1000,
+      },
+      removeOnComplete: true, // Prevent queue memory leaks in Redis
+      removeOnFail: { count: 100 }, // Keep last 100 failures for debugging
     });
 
     return res.status(202).json({ 

@@ -248,8 +248,8 @@ app.get('/health', (_req, res) => {
 // ─────────────────────────────────────────────────────────────
 // BullMQ Workers / Queues
 // ─────────────────────────────────────────────────────────────
-// Background workers have been decoupled. 
-// Run `npm run start:worker` in a separate process to process background jobs.
+import './queues';
+import './workers/judgeWorker';
 
 // ─────────────────────────────────────────────────────────────
 // Route Imports
