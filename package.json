@@ -2,13 +2,18 @@
   "name": "bytearena-monorepo",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@10.2.4",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspaces --if-present",
-    "build": "npm run build --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present"
+    "postinstall": "prisma generate --schema=packages/database/prisma/schema.prisma",
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint"
+  },
+  "devDependencies": {
+    "turbo": "^2.9.14"
   }
 }
