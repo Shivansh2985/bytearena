@@ -129,44 +129,40 @@ export default function AdminProctoringPage() {
   const accessToken = (session as any)?.accessToken;
   const [livekitTokens, setLivekitTokens] = useState<Record<string, string>>({});
 
+  // Socket Initialization (Singleton per session)
   useEffect(() => {
-    // Aggressively pre-fetch LiveKit tokens for all live contests to ensure immediate streaming
-    const uniqueContests = Array.from(new Set(liveParticipants.map(p => p.contest)));
-    uniqueContests.forEach(contestId => {
-      if (!livekitTokens[contestId]) {
-        apiFetch(`/api/proctoring/token?room=contest-${contestId}`)
-          .then(res => res.json())
-          .then(data => {
-            if (data.token) {
-              setLivekitTokens(prev => ({ ...prev, [contestId]: data.token }));
-            }
-          })
-          .catch(console.error);
-      }
+    if (!accessToken) return;
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8080';
+    const newSocket = io(socketUrl, { auth: { token: accessToken } });
+    
+    newSocket.on('connect', () => {
+      console.log('Admin socket connected:', newSocket.id);
     });
-  }, [liveParticipants, livekitTokens]);
 
-  useEffect(() => {
-    const fetchSocket = async () => {
-      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8080';
-      const newSocket = io(socketUrl, { auth: { token: accessToken } });
-      setSocket(newSocket);
-      newSocket.on('proctor:alert', (data) => console.log('Proctor alert:', data));
+    newSocket.on('proctor:alert', (data) => console.log('Proctor alert:', data));
+    
+    setSocket(newSocket);
+    
+    return () => {
+      console.log('Admin socket disconnecting:', newSocket.id);
+      newSocket.disconnect();
+      setSocket(null);
     };
+  }, [accessToken]);
 
+  // Data Polling
+  useEffect(() => {
     const fetchUsers = async () => {
       try {
         const res = await apiFetch('/api/admin?action=proctoring');
         const data = await res.json();
         if (!data.error && Array.isArray(data)) {
           // Add mock contest title if missing from backend for testing hierarchy
-          const enriched = data.map(p => ({
+          const enriched = data.map((p: any) => ({
             ...p,
             contestTitle: p.contestTitle || `Contest ${p.contest.substring(0,6)}`
           }));
           setLiveParticipants(enriched);
-          
-          // Auto-select removed to let admin choose the contest
         }
       } catch (err) {
         console.error('Failed to fetch proctoring data', err);
@@ -183,12 +179,42 @@ export default function AdminProctoringPage() {
       }
     };
 
-    fetchSocket();
     fetchContests();
     fetchUsers();
     const interval = setInterval(fetchUsers, 5000);
-    return () => { socket?.disconnect(); clearInterval(interval); };
-  }, [accessToken, selectedContestId]);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Handle Stream Request when Admin views a participant
+  useEffect(() => {
+    if (!socket || !selectedParticipantId || !selectedContestId) return;
+
+    // 1. Ask backend to notify the contestant to publish
+    socket.emit('admin:request-stream', {
+      contestId: selectedContestId,
+      targetUserId: selectedParticipantId
+    });
+
+    // 2. Admin needs a token to join the room
+    if (!livekitTokens[selectedContestId]) {
+      apiFetch(`/api/proctoring/token?room=contest-${selectedContestId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.token) {
+            setLivekitTokens(prev => ({ ...prev, [selectedContestId]: data.token }));
+          }
+        })
+        .catch(console.error);
+    }
+
+    // 3. Cleanup: Tell contestant to stop publishing
+    return () => {
+      socket.emit('admin:stop-stream', {
+        contestId: selectedContestId,
+        targetUserId: selectedParticipantId
+      });
+    };
+  }, [socket, selectedParticipantId, selectedContestId]);
 
   // Derived state: Merge all live contests from /api/contests with participants data
   const contests = liveContests.map(c => {
@@ -361,6 +387,7 @@ export default function AdminProctoringPage() {
                       <LiveKitRoom
                         video={false}
                         audio={true}
+                        connect={true}
                         token={livekitTokens[selectedContestId!]}
                         serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL || 'wss://your-livekit-server.livekit.cloud'}
                         className="w-full h-full"
