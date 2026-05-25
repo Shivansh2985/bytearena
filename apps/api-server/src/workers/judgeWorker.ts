@@ -438,9 +438,9 @@ async function executeCode(
         : '?base64_encoded=false&wait=false'
     }`;
 
-    // Add AbortController for a 10s request timeout
+    // Add AbortController for a 60s request timeout (RapidAPI can be slow)
     const submitController = new AbortController();
-    const submitTimeout = setTimeout(() => submitController.abort(), 10000);
+    const submitTimeout = setTimeout(() => submitController.abort(), 60000);
 
     const submitRes = await fetch(submitUrl, {
       method: 'POST',
@@ -478,7 +478,7 @@ async function executeCode(
       await sleep(delay);
 
       const statusController = new AbortController();
-      const statusTimeout = setTimeout(() => statusController.abort(), 10000);
+      const statusTimeout = setTimeout(() => statusController.abort(), 20000);
 
       const statusRes = await fetch(
         `${judge0Base}/submissions/${token}?base64_encoded=false&fields=*`,

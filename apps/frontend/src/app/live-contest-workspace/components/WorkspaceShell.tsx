@@ -441,12 +441,11 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
             const imageBase64 = canvas.toDataURL('image/jpeg', 0.4);
             apiFetch('/api/proctoring/snapshot', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ contestId, imageBase64 })
             }).catch(console.error);
           }
         };
-      }, 60 * 1000); // Every 60 seconds
+      }, 3 * 60 * 1000); // Every 3 minutes
 
     } catch (err) {
       alert("Camera, Microphone, and Fullscreen permissions are required to start the contest!");

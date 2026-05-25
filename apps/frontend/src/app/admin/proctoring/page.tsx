@@ -2,7 +2,7 @@
 import { apiFetch } from '@/lib/api';
 import React, { useState, useEffect } from 'react';
 import AppLayout from '@/components/AppLayout';
-import { Eye, AlertTriangle, Camera, CameraOff, Monitor, ShieldOff, Users, Activity, X, CheckCircle, ChevronRight, Video } from 'lucide-react';
+import { Eye, AlertTriangle, Camera, CameraOff, Monitor, ShieldOff, Users, Activity, X, CheckCircle, ChevronRight, Video, Volume2, VolumeX, Maximize } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { useSession } from 'next-auth/react';
 import { LiveKitRoom, useTracks, VideoTrack, AudioTrack, useConnectionState } from '@livekit/components-react';
@@ -16,6 +16,8 @@ function SingleParticipantVideo({ identity }: { identity: string }) {
   const audioTrack = audioTracks.find(t => t.participant.identity === identity);
   
   const connectionState = useConnectionState();
+  const [isMuted, setIsMuted] = useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
   
   useEffect(() => {
     console.log(`[Admin] Checking subscription for identity: ${identity}`);
@@ -43,10 +45,19 @@ function SingleParticipantVideo({ identity }: { identity: string }) {
   }
   
   return (
-    <>
+    <div ref={containerRef} className="w-full h-full relative group">
       <VideoTrack trackRef={track} className="w-full h-full object-cover" />
-      {audioTrack && <AudioTrack trackRef={audioTrack} />}
-    </>
+      {audioTrack && !isMuted && <AudioTrack trackRef={audioTrack} />}
+      
+      <div className="absolute bottom-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-50">
+        <button onClick={() => setIsMuted(!isMuted)} className="p-2 bg-black/50 hover:bg-black/80 rounded text-white backdrop-blur">
+          {isMuted ? <VolumeX size={16}/> : <Volume2 size={16}/>}
+        </button>
+        <button onClick={() => containerRef.current?.requestFullscreen()} className="p-2 bg-black/50 hover:bg-black/80 rounded text-white backdrop-blur">
+          <Maximize size={16}/>
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -74,7 +85,7 @@ const statusConfig = {
   flagged: { label: 'Flagged', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
 };
 
-function ContestSnapshots({ contestId }: { contestId: string }) {
+function ContestSnapshots({ contestId, userId }: { contestId: string, userId?: string }) {
   const [snapshots, setSnapshots] = useState<any[]>([]);
   const [enlargedSnap, setEnlargedSnap] = useState<string | null>(null);
 
@@ -85,7 +96,13 @@ function ContestSnapshots({ contestId }: { contestId: string }) {
       apiFetch(`/api/contests/${contestId}`)
         .then(res => res.json())
         .then(data => {
-          if (data.snapshots) setSnapshots(data.snapshots);
+          if (data.snapshots) {
+            let filtered = data.snapshots;
+            if (userId) {
+              filtered = filtered.filter((s: any) => s.userId === userId || s.user?.id === userId);
+            }
+            setSnapshots(filtered);
+          }
         })
         .catch(console.error);
     };
@@ -93,7 +110,7 @@ function ContestSnapshots({ contestId }: { contestId: string }) {
     fetchSnaps();
     const interval = setInterval(fetchSnaps, 60000);
     return () => clearInterval(interval);
-  }, [contestId]);
+  }, [contestId, userId]);
 
   return (
     <div className="mt-6">
@@ -422,10 +439,10 @@ export default function AdminProctoringPage() {
                 </div>
               </div>
               
-              <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+              <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
                 {/* Left side: Instant Video Stream + Snapshots */}
-                <div className="flex flex-col w-full md:w-2/3 border-b md:border-b-0 md:border-r border-border h-[60vh] md:h-full">
-                  <div className="flex-1 bg-slate-950 relative">
+                <div className="flex flex-col w-full md:w-2/3 border-b md:border-b-0 md:border-r border-border h-full min-h-0">
+                  <div className="flex-1 bg-slate-950 relative min-h-0">
                   {selectedParticipant.cameraStatus === 'active' ? (
                     livekitTokens[selectedContestId!] ? (
                       <LiveKitRoom
@@ -455,8 +472,8 @@ export default function AdminProctoringPage() {
                 </div>
 
                 {/* Snapshots horizontally aligned below live stream */}
-                <div className="h-[25vh] overflow-y-auto bg-background p-4 border-t border-border">
-                  {selectedContestId && <ContestSnapshots contestId={selectedContestId} />}
+                <div className="h-[25vh] min-h-[200px] overflow-y-auto bg-background p-4 border-t border-border shrink-0">
+                  {selectedContestId && <ContestSnapshots contestId={selectedContestId} userId={selectedParticipant.userId} />}
                 </div>
               </div>
 
