@@ -142,6 +142,13 @@ async function executeCode(
     options.pollOptions || {}
   );
 
+  // Fix Java class name issue for Judge0 which expects Main.java
+  let codeToSubmit = code;
+  if (languageKey.toLowerCase() === 'java') {
+    codeToSubmit = codeToSubmit.replace(/public\s+class\s+\w+/g, 'public class Main');
+    codeToSubmit = codeToSubmit.replace(/class\s+Solution/g, 'class Main');
+  }
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
@@ -172,7 +179,7 @@ async function executeCode(
       method: 'POST',
       headers,
       body: JSON.stringify({
-        source_code: code,
+        source_code: codeToSubmit,
         language_id: languageId,
         stdin: input,
         cpu_time_limit: 2,

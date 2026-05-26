@@ -430,33 +430,27 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
         console.warn('Snapshot blocked: Video track is dead/ended');
         return;
       }
-      const video = document.createElement('video');
-      video.muted = true;
-      video.playsInline = true;
-      video.srcObject = streamToUse;
       
-      // Use loadeddata instead of playing to avoid calling play() which can break tracks
-      video.onloadeddata = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          const scale = Math.min(640 / video.videoWidth, 1);
-          canvas.width = video.videoWidth * scale;
-          canvas.height = video.videoHeight * scale;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const imageBase64 = canvas.toDataURL('image/jpeg', 0.4);
-            apiFetch('/api/proctoring/snapshot', {
-              method: 'POST',
-              body: JSON.stringify({ contestId, imageBase64 })
-            }).catch(console.error);
-          }
-        } finally {
-          // Safe cleanup without calling video.load() or video.pause() which might affect the track
-          video.srcObject = null;
-          video.onloadeddata = null;
-        }
-      };
+      // Grab the actively rendering video element from the top bar instead of creating a hidden one
+      const video = document.querySelector('video');
+      if (!video || video.videoWidth === 0) {
+         console.warn('Snapshot blocked: No active video element found on page');
+         return;
+      }
+
+      const canvas = document.createElement('canvas');
+      const scale = Math.min(640 / video.videoWidth, 1);
+      canvas.width = video.videoWidth * scale;
+      canvas.height = video.videoHeight * scale;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageBase64 = canvas.toDataURL('image/jpeg', 0.4);
+        apiFetch('/api/proctoring/snapshot', {
+          method: 'POST',
+          body: JSON.stringify({ contestId, imageBase64 })
+        }).catch(console.error);
+      }
     } catch (err) {
       console.error("Snapshot error:", err);
     }
@@ -465,7 +459,14 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
   const recoverStream = useCallback(async () => {
     try {
       console.log('Recovering media stream...');
-      const newStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const newStream = await navigator.mediaDevices.getUserMedia({ 
+        video: true, 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } 
+      });
       setMediaStream(newStream);
       
       // Update LiveKit if connected
@@ -532,7 +533,14 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
     if (isCompleted) return;
     try {
       // await document.documentElement.requestFullscreen(); // Disabled for testing
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: true, 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } 
+      });
       setPermissionsGranted(true);
       // setIsFullscreen(true); // Disabled for testing
       setMediaStream(stream);
