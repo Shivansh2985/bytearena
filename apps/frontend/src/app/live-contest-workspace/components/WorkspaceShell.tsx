@@ -880,14 +880,18 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
   
   const snapshotIntervalRef = useRef<any>(null);
 
-  // ❌ ISSUE: mediaStream tracks are never stopped on unmount, causing camera light to stay on.
-  // ❌ ISSUE: snapshotIntervalRef is never cleared on unmount, causing API spam and memory leak.
-  // ✅ SAFE FIX: Add global cleanup effect for hardware resources.
+  // ✅ SAFE FIX: Separate unmount cleanup for interval to avoid clearing it on mediaStream state changes.
   useEffect(() => {
     return () => {
       if (snapshotIntervalRef.current) {
         clearInterval(snapshotIntervalRef.current);
       }
+    };
+  }, []);
+
+  // ✅ SAFE FIX: Cleanup for hardware resources when stream changes or unmounts.
+  useEffect(() => {
+    return () => {
       if (mediaStream) {
         mediaStream.getTracks().forEach(track => track.stop());
       }
