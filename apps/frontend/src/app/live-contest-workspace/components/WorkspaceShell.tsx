@@ -435,28 +435,28 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       video.playsInline = true;
       video.srcObject = streamToUse;
       
-      video.onplaying = () => {
-        const canvas = document.createElement('canvas');
-        const scale = Math.min(640 / video.videoWidth, 1);
-        canvas.width = video.videoWidth * scale;
-        canvas.height = video.videoHeight * scale;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const imageBase64 = canvas.toDataURL('image/jpeg', 0.4);
-          apiFetch('/api/proctoring/snapshot', {
-            method: 'POST',
-            body: JSON.stringify({ contestId, imageBase64 })
-          }).catch(console.error);
+      // Use loadeddata instead of playing to avoid calling play() which can break tracks
+      video.onloadeddata = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const scale = Math.min(640 / video.videoWidth, 1);
+          canvas.width = video.videoWidth * scale;
+          canvas.height = video.videoHeight * scale;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageBase64 = canvas.toDataURL('image/jpeg', 0.4);
+            apiFetch('/api/proctoring/snapshot', {
+              method: 'POST',
+              body: JSON.stringify({ contestId, imageBase64 })
+            }).catch(console.error);
+          }
+        } finally {
+          // Safe cleanup without calling video.load() or video.pause() which might affect the track
+          video.srcObject = null;
+          video.onloadeddata = null;
         }
-        
-        // CRITICAL MEMORY LEAK FIX: Cleanup the hidden video element to free hardware decoders
-        video.pause();
-        video.srcObject = null;
-        video.removeAttribute('src');
-        video.load();
       };
-      await video.play().catch(e => console.warn('Snapshot play error:', e));
     } catch (err) {
       console.error("Snapshot error:", err);
     }
@@ -531,10 +531,10 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
   const requestPermissions = async () => {
     if (isCompleted) return;
     try {
-      await document.documentElement.requestFullscreen();
+      // await document.documentElement.requestFullscreen(); // Disabled for testing
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       setPermissionsGranted(true);
-      setIsFullscreen(true);
+      // setIsFullscreen(true); // Disabled for testing
       setMediaStream(stream);
       
       // Take first snapshot immediately
@@ -550,10 +550,10 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
         } else {
            takeSnapshot(stream);
         }
-      }, 3 * 60 * 1000); // Every 3 minutes
+      }, 15 * 1000); // 15 seconds for testing (was 3 mins)
 
     } catch (err) {
-      alert("Camera, Microphone, and Fullscreen permissions are required to start the contest!");
+      alert("Camera and Microphone permissions are required to start the contest!");
     }
   };
 
@@ -880,14 +880,13 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
 
 
   useEffect(() => {
-    if (isCompleted || !permissionsGranted) return;
     const handleFullscreenChange = () => {
-      if (!document.fullscreenElement) {
-        alert('You exited fullscreen mode. Your contest has been automatically submitted to prevent cheating.');
-        handleEndContest(true);
-      } else {
-        setIsFullscreen(true);
-      }
+      // if (!document.fullscreenElement) {
+      //   alert('You exited fullscreen mode. Your contest has been automatically submitted to prevent cheating.');
+      //   submitContest();
+      // } else {
+      //   setIsFullscreen(true);
+      // }
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => {
