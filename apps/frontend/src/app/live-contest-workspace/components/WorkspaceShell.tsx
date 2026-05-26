@@ -274,6 +274,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
   const accessToken = (session as any)?.accessToken;
 
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  const hiddenVideoRef = useRef<HTMLVideoElement>(null);
   
   // ⚠ ANALYSIS:
   // Current usage: Unused locally.
@@ -431,8 +432,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
         return;
       }
       
-      // Grab the actively rendering video element from the top bar instead of creating a hidden one
-      const video = document.querySelector('video');
+      const video = hiddenVideoRef.current;
       if (!video || video.videoWidth === 0) {
          console.warn('Snapshot blocked: No active video element found on page');
          return;
@@ -455,6 +455,14 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       console.error("Snapshot error:", err);
     }
   }, [contestId, isCompleted]);
+
+  // Keep the hidden video playing for snapshots
+  useEffect(() => {
+    if (hiddenVideoRef.current && mediaStream) {
+      hiddenVideoRef.current.srcObject = mediaStream;
+      hiddenVideoRef.current.play().catch(() => {});
+    }
+  }, [mediaStream]);
 
   const recoverStream = useCallback(async () => {
     try {
@@ -1151,6 +1159,14 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
         contestStartTime={contestStartTime}
         contestEndTime={contestEndTime}
       />
+        
+        {/* Invisible Video Element to serve as the continuous Snapshot Source */}
+        <video 
+          ref={hiddenVideoRef} 
+          muted 
+          playsInline 
+          className="absolute w-[1px] h-[1px] opacity-0 pointer-events-none z-[-1]" 
+        />
 
       {/* Main workspace */}
       <div className="flex flex-1 min-h-0">
