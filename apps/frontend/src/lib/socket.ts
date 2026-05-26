@@ -5,7 +5,7 @@ let reconnectCount = 0;
 
 export const getSocket = (token?: string, url?: string): Socket | null => {
   if (globalSocket) {
-    if (token && globalSocket.auth !== token) {
+    if (token && (globalSocket.auth as any).token !== token) {
       globalSocket.auth = { token };
       globalSocket.disconnect().connect();
     }
@@ -38,12 +38,14 @@ export const getSocket = (token?: string, url?: string): Socket | null => {
   const originalOff = globalSocket.off.bind(globalSocket);
   let listenerCount = 0;
 
+  // @ts-ignore
   globalSocket.on = (ev: string, fn: any) => {
     listenerCount++;
     // console.log(`[Socket Debug] + Listener attached: ${ev} (Total: ${listenerCount})`);
     return originalOn(ev, fn);
   };
 
+  // @ts-ignore
   globalSocket.off = (ev: string, fn?: any) => {
     if (listenerCount > 0) listenerCount--;
     // console.log(`[Socket Debug] - Listener removed: ${ev} (Total: ${listenerCount})`);

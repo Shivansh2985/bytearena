@@ -17,7 +17,7 @@ export default function ContestantMonitor({ token }: { token: string }) {
       console.log('Stream requested by admin. Starting LiveKit room...');
       setLiveKitToken(data.token);
       setStreamRequested(true);
-    });
+    };
 
     const handleStreamStop = () => {
       console.log('Stream stopped by admin. Tearing down...');

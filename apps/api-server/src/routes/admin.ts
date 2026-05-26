@@ -48,6 +48,12 @@ router.get('/', requireAdmin, async (req: Request, res: Response) => {
         const tabSwitches = userLogs.filter((l: any) => l.eventType === 'blur').length;
         const warnings = tabSwitches;
 
+        let cameraStatus = 'away';
+        if (latestSnap) {
+          const snapAgeMinutes = (Date.now() - latestSnap.createdAt.getTime()) / (1000 * 60);
+          cameraStatus = snapAgeMinutes > 5 ? 'away' : 'active';
+        }
+
         return {
           id: p.id,
           userId: p.userId,
@@ -57,7 +63,7 @@ router.get('/', requireAdmin, async (req: Request, res: Response) => {
           score: p.score,
           status: warnings > 5 ? 'flagged' : warnings > 0 ? 'warning' : 'clean',
           warnings,
-          cameraStatus: latestSnap ? 'active' : 'away',
+          cameraStatus,
           tabSwitches,
           lastActivity: latestSnap ? latestSnap.createdAt.toISOString() : 'Unknown',
           contest: p.contest.id,

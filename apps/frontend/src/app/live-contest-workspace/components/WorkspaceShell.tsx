@@ -422,6 +422,106 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       });
   }, [contestId]);
 
+  const takeSnapshot = useCallback(async (streamToUse: MediaStream) => {
+    if (!contestId || isCompleted) return;
+    try {
+      const videoTrack = streamToUse.getVideoTracks()[0];
+      if (!videoTrack || videoTrack.readyState === 'ended' || videoTrack.muted) {
+        console.warn('Snapshot blocked: Video track is dead/ended');
+        return;
+      }
+      const video = document.createElement('video');
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = streamToUse;
+      
+      video.onplaying = () => {
+        const canvas = document.createElement('canvas');
+        const scale = Math.min(640 / video.videoWidth, 1);
+        canvas.width = video.videoWidth * scale;
+        canvas.height = video.videoHeight * scale;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const imageBase64 = canvas.toDataURL('image/jpeg', 0.4);
+          apiFetch('/api/proctoring/snapshot', {
+            method: 'POST',
+            body: JSON.stringify({ contestId, imageBase64 })
+          }).catch(console.error);
+        }
+      };
+      await video.play().catch(e => console.warn('Snapshot play error:', e));
+    } catch (err) {
+      console.error("Snapshot error:", err);
+    }
+  }, [contestId, isCompleted]);
+
+  const recoverStream = useCallback(async () => {
+    try {
+      console.log('Recovering media stream...');
+      const newStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      setMediaStream(newStream);
+      
+      // Update LiveKit if connected
+      if (lkRoom?.state === 'connected') {
+        const localPart = lkRoom.localParticipant;
+        const oldVideo = localPart.getTrackPublication(Track.Source.Camera);
+        const oldAudio = localPart.getTrackPublication(Track.Source.Microphone);
+        
+        if (oldVideo) await localPart.unpublishTrack(oldVideo.track!);
+        if (oldAudio) await localPart.unpublishTrack(oldAudio.track!);
+        
+        const videoTrack = newStream.getVideoTracks()[0];
+        const audioTrack = newStream.getAudioTracks()[0];
+        
+        if (videoTrack) await localPart.publishTrack(videoTrack, { name: 'camera', source: Track.Source.Camera });
+        if (audioTrack) await localPart.publishTrack(audioTrack, { name: 'microphone', source: Track.Source.Microphone });
+        console.log('Successfully recovered and republished to LiveKit');
+      }
+
+      // Automatically take a snapshot upon recovery
+      takeSnapshot(newStream);
+      return newStream;
+    } catch (err) {
+      console.error('Stream recovery failed:', err);
+      return null;
+    }
+  }, [lkRoom, takeSnapshot]);
+
+  // Monitor track ended events (e.g. OS kills track in background)
+  useEffect(() => {
+    if (!mediaStream) return;
+    const videoTrack = mediaStream.getVideoTracks()[0];
+    if (!videoTrack) return;
+
+    const handleEnded = () => {
+      console.warn('Video track ended unexpectedly. Attempting recovery...');
+      if (document.visibilityState === 'visible') {
+        recoverStream();
+      }
+    };
+
+    videoTrack.addEventListener('ended', handleEnded);
+    return () => videoTrack.removeEventListener('ended', handleEnded);
+  }, [mediaStream, recoverStream]);
+
+  // Monitor visibility changes for mobile backgrounding
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && permissionsGranted && !isCompleted) {
+        if (mediaStream) {
+          const videoTrack = mediaStream.getVideoTracks()[0];
+          if (!videoTrack || videoTrack.readyState === 'ended') {
+            console.warn('Document visible but stream is ended. Attempting recovery...');
+            await recoverStream();
+          }
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [permissionsGranted, isCompleted, mediaStream, recoverStream]);
+
   const requestPermissions = async () => {
     if (isCompleted) return;
     try {
@@ -431,30 +531,19 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       setIsFullscreen(true);
       setMediaStream(stream);
       
-      // Start taking snapshots
+      // Take first snapshot immediately
+      takeSnapshot(stream);
+
+      // Start taking periodic snapshots
       if (snapshotIntervalRef.current) clearInterval(snapshotIntervalRef.current);
       snapshotIntervalRef.current = setInterval(() => {
-        const video = document.createElement('video');
-        video.muted = true;
-        video.srcObject = stream;
-        video.play();
-        video.onplaying = () => {
-          const canvas = document.createElement('canvas');
-          // Scale down the image to a max width of 640px to reduce payload size
-          const scale = Math.min(640 / video.videoWidth, 1);
-          canvas.width = video.videoWidth * scale;
-          canvas.height = video.videoHeight * scale;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            // Compress JPEG aggressively to prevent upload timeouts (0.4 quality)
-            const imageBase64 = canvas.toDataURL('image/jpeg', 0.4);
-            apiFetch('/api/proctoring/snapshot', {
-              method: 'POST',
-              body: JSON.stringify({ contestId, imageBase64 })
-            }).catch(console.error);
-          }
-        };
+        // If track is dead, attempt recovery before snapshot
+        const vt = stream.getVideoTracks()[0];
+        if (!vt || vt.readyState === 'ended') {
+           recoverStream();
+        } else {
+           takeSnapshot(stream);
+        }
       }, 3 * 60 * 1000); // Every 3 minutes
 
     } catch (err) {
