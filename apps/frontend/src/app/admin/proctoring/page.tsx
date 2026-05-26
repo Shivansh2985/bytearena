@@ -2,15 +2,83 @@
 import { apiFetch } from '@/lib/api';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import AppLayout from '@/components/AppLayout';
-import { Eye, AlertTriangle, Camera, CameraOff, Monitor, ShieldOff, Users, Activity, X, CheckCircle, ChevronRight, Video, Volume2, VolumeX, Maximize, UserX } from 'lucide-react';
+import { Eye, AlertTriangle, Camera, CameraOff, Monitor, ShieldOff, Users, Activity, X, CheckCircle, ChevronRight, Video, Volume2, VolumeX, Maximize, UserX, Mic, MicOff } from 'lucide-react';
 import { useSocket } from '@/providers/SocketProvider';
 import { useSession } from 'next-auth/react';
 import { LiveKitRoom, useTracks, VideoTrack, AudioTrack, useConnectionState } from '@livekit/components-react';
-import { Track } from 'livekit-client';
+import { Track, Room, createLocalAudioTrack } from 'livekit-client';
 import { RealtimeProvider } from '@/providers/RealtimeProvider';
 import '@livekit/components-styles';
 
-function SingleParticipantVideo({ identity }: { identity: string }) {
+function AdminMicControls({ selectedParticipantId, contestId }: { selectedParticipantId: string, contestId: string }) {
+  const { socket } = useSocket();
+  const { data: session } = useSession();
+  const [micEnabled, setMicEnabled] = useState(false);
+  const voiceRoomRef = useRef<Room | null>(null);
+
+  // Hard cleanup when participant changes or unmounts
+  useEffect(() => {
+    return () => {
+      if (voiceRoomRef.current) {
+        voiceRoomRef.current.disconnect();
+        voiceRoomRef.current = null;
+      }
+    };
+  }, [selectedParticipantId]);
+
+  useEffect(() => {
+    // If selected participant changes, and mic was enabled, disable it securely
+    if (micEnabled) {
+      setMicEnabled(false);
+      socket?.emit('admin:voice-disable', { contestId, targetUserId: selectedParticipantId });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedParticipantId]); // Only trigger when ID changes
+
+  const toggleMic = async () => {
+    if (!selectedParticipantId || !contestId || !socket || !session?.user?.id) return;
+    
+    if (micEnabled) {
+      // Disable
+      socket.emit('admin:voice-disable', { contestId, targetUserId: selectedParticipantId });
+      if (voiceRoomRef.current) {
+        voiceRoomRef.current.disconnect();
+        voiceRoomRef.current = null;
+      }
+      setMicEnabled(false);
+    } else {
+      // Enable
+      try {
+        const adminId = session.user.id;
+        const roomName = `voice-${contestId}-${selectedParticipantId}-${adminId}`;
+        const res = await apiFetch(`/api/proctoring/token?room=${roomName}`);
+        const data = await res.json();
+        
+        if (data.token) {
+           const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'wss://your-livekit-server.livekit.cloud';
+           const room = new Room();
+           await room.connect(livekitUrl, data.token);
+           const audioTrack = await createLocalAudioTrack();
+           await room.localParticipant.publishTrack(audioTrack);
+           voiceRoomRef.current = room;
+           
+           socket.emit('admin:voice-enable', { contestId, targetUserId: selectedParticipantId });
+           setMicEnabled(true);
+        }
+      } catch (err) {
+        console.error('Failed to start isolated voice room', err);
+      }
+    }
+  };
+
+  return (
+    <button onClick={toggleMic} className={`p-2 rounded text-white backdrop-blur transition-colors ${micEnabled ? 'bg-red-500 hover:bg-red-600 shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-black/50 hover:bg-black/80'}`} title={micEnabled ? "Mute Microphone" : "Talk to Contestant"}>
+       {micEnabled ? <Mic size={16}/> : <MicOff size={16}/>}
+    </button>
+  );
+}
+
+function SingleParticipantVideo({ identity, contestId }: { identity: string, contestId: string }) {
   const tracks = useTracks([Track.Source.Camera]);
   const audioTracks = useTracks([Track.Source.Microphone]);
   const track = tracks.find(t => t.participant.identity === identity);
@@ -39,7 +107,7 @@ function SingleParticipantVideo({ identity }: { identity: string }) {
           <Camera size={14} className={connectionState === 'disconnected' ? 'text-red-400' : 'text-muted-foreground'} />
         </div>
         {connectionState === 'connecting' ? 'Connecting...' : 
-         connectionState === 'disconnected' ? 'Stream Offline / Failed to Connect' : 'Waiting for Video Track...'}
+         connectionState === 'disconnected' ? 'TRACK_UNSUBSCRIBED / MEDIA_RECOVERING' : 'Waiting for Video Track...'}
         <span className="text-[10px] opacity-50 uppercase tracking-widest">{connectionState}</span>
       </div>
     );
@@ -54,6 +122,7 @@ function SingleParticipantVideo({ identity }: { identity: string }) {
         <button onClick={() => setIsMuted(!isMuted)} className="p-2 bg-black/50 hover:bg-black/80 rounded text-white backdrop-blur">
           {isMuted ? <VolumeX size={16}/> : <Volume2 size={16}/>}
         </button>
+        <AdminMicControls selectedParticipantId={identity} contestId={contestId} />
         <button onClick={() => containerRef.current?.requestFullscreen()} className="p-2 bg-black/50 hover:bg-black/80 rounded text-white backdrop-blur">
           <Maximize size={16}/>
         </button>
@@ -424,7 +493,7 @@ function AdminProctoringContent() {
                           serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL || 'wss://your-livekit-server.livekit.cloud'}
                           className="w-full h-full min-h-0 flex"
                         >
-                          <SingleParticipantVideo identity={selectedParticipant.userId} />
+                          <SingleParticipantVideo identity={selectedParticipant.userId} contestId={selectedContestId!} />
                         </LiveKitRoom>
                       ) : (
                          <div className="w-full h-full flex items-center justify-center text-muted-foreground">Initializing connection...</div>
@@ -432,7 +501,7 @@ function AdminProctoringContent() {
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center">
                         <CameraOff size={48} className="text-red-400 mb-4 opacity-80" />
-                        <p className="text-lg text-red-400 font-medium">Camera is {selectedParticipant.cameraStatus}</p>
+                        <p className="text-lg text-red-400 font-medium">CAMERA_OFF / {selectedParticipant.cameraStatus.toUpperCase()}</p>
                       </div>
                     )}
                     {/* Overlay Tag */}

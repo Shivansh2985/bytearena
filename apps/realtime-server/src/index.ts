@@ -435,6 +435,29 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on(
+    'admin:voice-enable',
+    (data: { contestId: string; targetUserId: string }) => {
+      if (role !== 'ADMIN') return;
+      const roomName = `voice-${data.contestId}-${data.targetUserId}-${userId}`;
+      io.to(`user:${data.targetUserId}`).emit('admin:voice-started', {
+        roomName,
+        adminId: userId,
+      });
+      console.log(`[Admin Voice] Admin ${userId} initiated voice with Contestant ${data.targetUserId} in room ${roomName}`);
+    }
+  );
+
+  socket.on(
+    'admin:voice-disable',
+    (data: { contestId: string; targetUserId: string }) => {
+      if (role !== 'ADMIN') return;
+      io.to(`user:${data.targetUserId}`).emit('admin:voice-stopped', {
+        adminId: userId,
+      });
+      console.log(`[Admin Voice] Admin ${userId} ended voice with Contestant ${data.targetUserId}`);
+    }
+  );
 
   socket.on('disconnect', async () => {
     console.log(`User ${userId} disconnected.`);

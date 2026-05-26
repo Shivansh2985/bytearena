@@ -7,7 +7,7 @@ import CodeEditorPanel from './CodeEditorPanel';
 import OutputPanel from './OutputPanel';
 import ProctoringOverlay from './ProctoringOverlay';
 import ToastProvider from '@/components/ui/Toast';
-import { Track, RoomEvent } from 'livekit-client';
+import { Track, RoomEvent, Room } from 'livekit-client';
 import { useSession } from 'next-auth/react';
 import { useSocket } from '@/providers/SocketProvider';
 import { useLiveKit } from '@/providers/LiveKitProvider';
@@ -449,6 +449,12 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
             body: JSON.stringify({ contestId, imageBase64 })
           }).catch(console.error);
         }
+        
+        // CRITICAL MEMORY LEAK FIX: Cleanup the hidden video element to free hardware decoders
+        video.pause();
+        video.srcObject = null;
+        video.removeAttribute('src');
+        video.load();
       };
       await video.play().catch(e => console.warn('Snapshot play error:', e));
     } catch (err) {
@@ -669,6 +675,69 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       lkRoom.off(RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished);
     };
   }, [lkRoom, currentUser, contestId]);
+
+  // Admin Voice Architecture (Isolated Room)
+  useEffect(() => {
+    if (!socket || !currentUser || !contestId) return;
+
+    let adminVoiceRoom: Room | null = null;
+
+    const onVoiceStarted = async ({ roomName, adminId }: { roomName: string, adminId: string }) => {
+      console.log(`[Admin Voice] Invited to isolated room ${roomName} by Admin ${adminId}`);
+      try {
+        const res = await apiFetch(`/api/proctoring/token?room=${roomName}`);
+        const data = await res.json();
+        
+        if (data.token) {
+          const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'wss://your-livekit-server.livekit.cloud';
+          adminVoiceRoom = new Room();
+          
+          adminVoiceRoom.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
+            if (track.kind === Track.Kind.Audio) {
+              const el = track.attach();
+              el.id = `admin-audio-${participant.identity}`;
+              document.body.appendChild(el);
+              console.log(`[Admin Voice] Subscribed and attached audio for Admin ${participant.identity}`);
+            }
+          });
+          
+          adminVoiceRoom.on(RoomEvent.TrackUnsubscribed, (track, pub, participant) => {
+            if (track.kind === Track.Kind.Audio) {
+              track.detach();
+              const el = document.getElementById(`admin-audio-${participant.identity}`);
+              if (el) el.remove();
+              console.log(`[Admin Voice] Unsubscribed and detached audio for Admin ${participant.identity}`);
+            }
+          });
+          
+          // autoSubscribe: true ensures we immediately receive the Admin's audio in this isolated room
+          await adminVoiceRoom.connect(livekitUrl, data.token, { autoSubscribe: true });
+        }
+      } catch (err) {
+        console.error('[Admin Voice] Failed to join isolated room', err);
+      }
+    };
+
+    const onVoiceStopped = ({ adminId }: { adminId: string }) => {
+      console.log(`[Admin Voice] Admin ${adminId} ended voice session.`);
+      if (adminVoiceRoom) {
+        adminVoiceRoom.disconnect();
+        adminVoiceRoom = null;
+      }
+    };
+
+    socket.on('admin:voice-started', onVoiceStarted);
+    socket.on('admin:voice-stopped', onVoiceStopped);
+
+    return () => {
+      socket.off('admin:voice-started', onVoiceStarted);
+      socket.off('admin:voice-stopped', onVoiceStopped);
+      if (adminVoiceRoom) {
+        adminVoiceRoom.disconnect();
+        adminVoiceRoom = null;
+      }
+    };
+  }, [socket, currentUser, contestId]);
 
   const currentProblemList = dynamicProblems.length > 0 ? dynamicProblems : problems;
   
