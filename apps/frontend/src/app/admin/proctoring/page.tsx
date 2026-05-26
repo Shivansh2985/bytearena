@@ -1,8 +1,8 @@
 'use client';
 import { apiFetch } from '@/lib/api';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import AppLayout from '@/components/AppLayout';
-import { Eye, AlertTriangle, Camera, CameraOff, Monitor, ShieldOff, Users, Activity, X, CheckCircle, ChevronRight, Video, Volume2, VolumeX, Maximize } from 'lucide-react';
+import { Eye, AlertTriangle, Camera, CameraOff, Monitor, ShieldOff, Users, Activity, X, CheckCircle, ChevronRight, Video, Volume2, VolumeX, Maximize, UserX } from 'lucide-react';
 import { useSocket } from '@/providers/SocketProvider';
 import { useSession } from 'next-auth/react';
 import { LiveKitRoom, useTracks, VideoTrack, AudioTrack, useConnectionState } from '@livekit/components-react';
@@ -76,7 +76,6 @@ interface Participant {
   lastActivity: string;
   contest: string; // contestId
   contestTitle?: string;
-  latestSnapshot?: string | null;
   logs?: { time: string, event: string }[];
 }
 
@@ -86,7 +85,7 @@ const statusConfig = {
   flagged: { label: 'Flagged', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
 };
 
-function ContestSnapshots({ contestId, userId }: { contestId: string, userId?: string }) {
+function ContestSnapshots({ contestId, userId, isAdmin }: { contestId: string, userId?: string, isAdmin?: boolean }) {
   const [snapshots, setSnapshots] = useState<any[]>([]);
   const [enlargedSnap, setEnlargedSnap] = useState<string | null>(null);
 
@@ -159,9 +158,8 @@ function AdminProctoringContent() {
   const [selectedContestId, setSelectedContestId] = useState<string | null>(null);
   const [selectedParticipantId, setSelectedParticipantId] = useState<string | null>(null);
   
-  const { data: session } = useSession();
-  const accessToken = (session as any)?.accessToken;
   const [livekitTokens, setLivekitTokens] = useState<Record<string, string>>({});
+  const fetchedTokensRef = useRef<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!socket) return;
@@ -213,14 +211,27 @@ function AdminProctoringContent() {
     return () => clearInterval(interval);
   }, []);
 
+  const handleRemoveParticipant = async (participantId: string) => {
+    if (!confirm('Are you sure you want to remove this participant from the contest?')) return;
+    try {
+      const res = await apiFetch(`/api/admin/participants/${participantId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setLiveParticipants(prev => prev.filter(p => p.id !== participantId));
+        setSelectedParticipantId(null);
+      } else {
+        alert('Failed to remove participant');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error removing participant');
+    }
+  };
+
   // Handle Stream Request when Admin views a participant
+  const targetUserId = liveParticipants.find(p => p.id === selectedParticipantId)?.userId || null;
+
   useEffect(() => {
-    if (!socket || !selectedParticipantId || !selectedContestId) return;
-
-    const selectedParticipant = liveParticipants.find(p => p.id === selectedParticipantId);
-    if (!selectedParticipant) return;
-
-    const targetUserId = selectedParticipant.userId;
+    if (!socket || !targetUserId || !selectedContestId) return;
 
     console.log(`[Admin] Emitting admin:request-stream for user ${targetUserId} in contest ${selectedContestId}`);
     // 1. Ask backend to notify the contestant to publish
@@ -230,7 +241,8 @@ function AdminProctoringContent() {
     });
 
     // 2. Admin needs a token to join the room
-    if (!livekitTokens[selectedContestId]) {
+    if (!fetchedTokensRef.current[selectedContestId]) {
+      fetchedTokensRef.current[selectedContestId] = true;
       apiFetch(`/api/proctoring/token?room=contest-${selectedContestId}`)
         .then(res => res.json())
         .then(data => {
@@ -238,7 +250,10 @@ function AdminProctoringContent() {
             setLivekitTokens(prev => ({ ...prev, [selectedContestId]: data.token }));
           }
         })
-        .catch(console.error);
+        .catch(err => {
+          console.error(err);
+          fetchedTokensRef.current[selectedContestId] = false;
+        });
     }
 
     // 3. Cleanup: Tell contestant to stop publishing
@@ -249,7 +264,7 @@ function AdminProctoringContent() {
         targetUserId: targetUserId
       });
     };
-  }, [socket, selectedParticipantId, selectedContestId, liveParticipants, livekitTokens]);
+  }, [socket, targetUserId, selectedContestId]);
 
   // Derived state: Merge all live contests from /api/contests with participants data
   const contests = liveContests.map(c => {
@@ -414,46 +429,46 @@ function AdminProctoringContent() {
               </div>
               
               <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
-                {/* Left side: Instant Video Stream + Snapshots */}
-                <div className="flex flex-col w-full md:w-2/3 border-b md:border-b-0 md:border-r border-border h-full min-h-0">
-                  <div className="flex-1 bg-slate-950 relative min-h-0">
-                  {selectedParticipant.cameraStatus === 'active' ? (
-                    livekitTokens[selectedContestId!] ? (
-                      <LiveKitRoom
-                        video={false}
-                        audio={false}
-                        connect={true}
-                        token={livekitTokens[selectedContestId!]}
-                        serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL || 'wss://your-livekit-server.livekit.cloud'}
-                        className="w-full h-full"
-                      >
-                        <SingleParticipantVideo identity={selectedParticipant.userId} />
-                      </LiveKitRoom>
+                  {/* Left side: Instant Video Stream */}
+                  <div className="flex flex-col w-full md:w-2/3 border-b md:border-b-0 md:border-r border-border h-full min-h-0">
+                    <div className="flex-1 bg-slate-950 relative min-h-0">
+                    {selectedParticipant.cameraStatus === 'active' ? (
+                      livekitTokens[selectedContestId!] ? (
+                        <LiveKitRoom
+                          video={false}
+                          audio={false}
+                          connect={true}
+                          token={livekitTokens[selectedContestId!]}
+                          serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL || 'wss://your-livekit-server.livekit.cloud'}
+                          className="w-full h-full min-h-0 flex"
+                        >
+                          <SingleParticipantVideo identity={selectedParticipant.userId} />
+                        </LiveKitRoom>
+                      ) : (
+                         <div className="w-full h-full flex items-center justify-center text-muted-foreground">Initializing connection...</div>
+                      )
                     ) : (
-                       <div className="w-full h-full flex items-center justify-center text-muted-foreground">Initializing connection...</div>
-                    )
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center">
-                      <CameraOff size={48} className="text-red-400 mb-4 opacity-80" />
-                      <p className="text-lg text-red-400 font-medium">Camera is {selectedParticipant.cameraStatus}</p>
+                      <div className="w-full h-full flex flex-col items-center justify-center">
+                        <CameraOff size={48} className="text-red-400 mb-4 opacity-80" />
+                        <p className="text-lg text-red-400 font-medium">Camera is {selectedParticipant.cameraStatus}</p>
+                      </div>
+                    )}
+                    {/* Overlay Tag */}
+                    <div className="absolute top-4 right-4 bg-red-500/80 backdrop-blur text-white text-xs font-bold px-3 py-1 rounded-md flex items-center gap-2 shadow-lg z-10">
+                      <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                      LIVE
                     </div>
-                  )}
-                  {/* Overlay Tag */}
-                  <div className="absolute top-4 right-4 bg-red-500/80 backdrop-blur text-white text-xs font-bold px-3 py-1 rounded-md flex items-center gap-2 shadow-lg z-10">
-                    <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                    LIVE
+                  </div>
+                  
+                  {/* Snapshots vertically aligned below live stream */}
+                  <div className="h-1/3 min-h-[160px] overflow-y-auto bg-background p-4 border-t border-border shrink-0">
+                    {selectedContestId && <ContestSnapshots contestId={selectedContestId} userId={selectedParticipant.userId} isAdmin={true} />}
                   </div>
                 </div>
 
-                {/* Snapshots horizontally aligned below live stream */}
-                <div className="h-[25vh] min-h-[200px] overflow-y-auto bg-background p-4 border-t border-border shrink-0">
-                  {selectedContestId && <ContestSnapshots contestId={selectedContestId} userId={selectedParticipant.userId} />}
-                </div>
-              </div>
-
-                {/* Right side: Metrics & Logs */}
-                <div className="w-full md:w-1/3 p-6 overflow-y-auto custom-scrollbar flex flex-col gap-6">
-                  <div className="grid grid-cols-2 gap-3">
+                {/* Right side: Actions & Logs */}
+                <div className="w-full md:w-1/3 flex flex-col min-h-0 bg-muted/10 overflow-y-auto custom-scrollbar flex flex-col gap-6">
+                  <div className="grid grid-cols-2 gap-3 p-6">
                     <div className="bg-muted/20 border border-border rounded-xl p-4 text-center">
                       <p className="text-xs text-muted-foreground mb-1">Rank</p>
                       <p className="text-2xl font-bold text-sky-400">#{selectedParticipant.rank}</p>
@@ -484,6 +499,15 @@ function AdminProctoringContent() {
                         No suspicious events detected
                       </div>
                     )}
+                  </div>
+                  <div className="px-6 pb-6 mt-auto">
+                    <button 
+                      onClick={() => handleRemoveParticipant(selectedParticipant.id)}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-red-500/20 bg-red-500/5 text-red-400 text-sm font-medium hover:bg-red-500/10 transition-colors"
+                    >
+                      <UserX size={16} />
+                      Remove from Contest
+                    </button>
                   </div>
                 </div>
               </div>

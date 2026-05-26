@@ -756,31 +756,31 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
 
   const pollJob = async (jobId: string, onSuccess: (data: any) => void) => {
     let attempts = 0;
-    const maxAttempts = 30; // 30 seconds polling limit
+    const maxAttempts = 60; // 30 seconds polling limit (60 * 500ms)
     
-    const interval = setInterval(async () => {
+    const poll = async () => {
       try {
         const res = await apiFetch(`/api/judge/job/${jobId}`);
         const data = await res.json();
         
         if (data.jobStatus === 'completed') {
-          clearInterval(interval);
           onSuccess(data.result);
         } else if (data.jobStatus === 'failed') {
-          clearInterval(interval);
           setRunResult({ status: 'runtime_error', output: data.error || 'Job failed' });
-        }
-        
-        attempts++;
-        if (attempts > maxAttempts) {
-          clearInterval(interval);
-          setRunResult({ status: 'runtime_error', output: 'Execution timed out' });
+        } else {
+          attempts++;
+          if (attempts > maxAttempts) {
+            setRunResult({ status: 'runtime_error', output: 'Execution timed out' });
+          } else {
+            setTimeout(poll, 500);
+          }
         }
       } catch (err) {
-        clearInterval(interval);
         setRunResult({ status: 'runtime_error', output: 'Failed to poll job status' });
       }
-    }, 1000);
+    };
+    
+    setTimeout(poll, 300); // Start polling quickly
   };
 
   const handleRun = async () => {

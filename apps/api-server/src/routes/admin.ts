@@ -114,4 +114,25 @@ router.delete('/users/:id', requireAdmin, async (req: Request, res: Response) =>
   }
 });
 
+router.delete('/participants/:id', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if participant exists
+    const participant = await prisma.contestParticipant.findUnique({ where: { id } });
+    if (!participant) {
+      return res.status(404).json({ error: 'Participant not found' });
+    }
+    
+    await prisma.contestParticipant.delete({
+      where: { id }
+    });
+
+    return res.json({ success: true, message: 'Participant removed successfully' });
+  } catch (error) {
+    console.error('Remove participant error:', error);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 export default router;
