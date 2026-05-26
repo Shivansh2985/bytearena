@@ -433,42 +433,84 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
         return;
       }
       
-      const video = snapshotVideoRef.current;
-      if (!video) {
-        console.warn('[Snapshot Telemetry] Blocked: snapshotVideoRef is null.');
-        return;
-      }
-      
-      if (video.readyState < 2) { // HAVE_CURRENT_DATA = 2
-        console.warn(`[Snapshot Telemetry] Blocked: video.readyState is ${video.readyState}, expected >= 2.`);
-        return;
-      }
-
-      if (video.videoWidth === 0 || video.videoHeight === 0) {
-        console.warn('[Snapshot Telemetry] Blocked: video dimensions are 0.');
-        return;
-      }
-
       if (!snapshotCanvasRef.current) {
         snapshotCanvasRef.current = document.createElement('canvas');
       }
       const canvas = snapshotCanvasRef.current;
-      const scale = Math.min(640 / video.videoWidth, 1);
-      canvas.width = video.videoWidth * scale;
-      canvas.height = video.videoHeight * scale;
-      
       const ctx = canvas.getContext('2d');
-      if (ctx) {
+      if (!ctx) return;
+
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+      if (isSafari) {
+        console.log('[Snapshot Telemetry] Safari detected, using temporary fallback mechanism.');
+        const video = document.createElement('video');
+        
+        try {
+          video.muted = true;
+          video.autoplay = true;
+          video.playsInline = true;
+          video.srcObject = new MediaStream([videoTrack]);
+
+          await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('Snapshot readiness timeout')), 3000);
+            video.onloadeddata = () => {
+              clearTimeout(timeout);
+              resolve(true);
+            };
+            video.onerror = reject;
+          });
+
+          if (!video.videoWidth || !video.videoHeight) {
+            throw new Error('Invalid snapshot dimensions');
+          }
+
+          const scale = Math.min(640 / video.videoWidth, 1);
+          canvas.width = video.videoWidth * scale;
+          canvas.height = video.videoHeight * scale;
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          
+        } finally {
+          video.pause();
+          video.srcObject = null;
+          video.removeAttribute('src');
+          video.onloadeddata = null;
+          video.onerror = null;
+          video.remove();
+        }
+      } else {
+        // Chromium flow
+        const video = snapshotVideoRef.current;
+        if (!video) {
+          console.warn('[Snapshot Telemetry] Blocked: snapshotVideoRef is null.');
+          return;
+        }
+        
+        if (video.readyState < 2) { 
+          console.warn(`[Snapshot Telemetry] Blocked: video.readyState is ${video.readyState}, expected >= 2.`);
+          return;
+        }
+
+        if (video.videoWidth === 0 || video.videoHeight === 0) {
+          console.warn('[Snapshot Telemetry] Blocked: video dimensions are 0.');
+          return;
+        }
+
+        const scale = Math.min(640 / video.videoWidth, 1);
+        canvas.width = video.videoWidth * scale;
+        canvas.height = video.videoHeight * scale;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageBase64 = canvas.toDataURL('image/jpeg', 0.4);
-        console.log(`[Snapshot Telemetry] Captured frame ${canvas.width}x${canvas.height}. Uploading...`);
-        apiFetch('/api/proctoring/snapshot', {
-          method: 'POST',
-          body: JSON.stringify({ contestId, imageBase64 })
-        })
-        .then(() => console.log('[Snapshot Telemetry] Upload success.'))
-        .catch(err => console.error('[Snapshot Telemetry] Upload failed:', err));
       }
+
+      const imageBase64 = canvas.toDataURL('image/jpeg', 0.4);
+      console.log(`[Snapshot Telemetry] Captured frame ${canvas.width}x${canvas.height}. Uploading...`);
+      apiFetch('/api/proctoring/snapshot', {
+        method: 'POST',
+        body: JSON.stringify({ contestId, imageBase64 })
+      })
+      .then(() => console.log('[Snapshot Telemetry] Upload success.'))
+      .catch(err => console.error('[Snapshot Telemetry] Upload failed:', err));
+
     } catch (err) {
       console.error("[Snapshot Telemetry] Snapshot error:", err);
     }
