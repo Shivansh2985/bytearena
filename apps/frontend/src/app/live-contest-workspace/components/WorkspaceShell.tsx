@@ -7,7 +7,7 @@ import CodeEditorPanel from './CodeEditorPanel';
 import OutputPanel from './OutputPanel';
 import ProctoringOverlay from './ProctoringOverlay';
 import ToastProvider from '@/components/ui/Toast';
-import { Track } from 'livekit-client';
+import { Track, RoomEvent } from 'livekit-client';
 import { useSession } from 'next-auth/react';
 import { useSocket } from '@/providers/SocketProvider';
 import { useLiveKit } from '@/providers/LiveKitProvider';
@@ -587,64 +587,88 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
     };
   }, [contestId, isCompleted, currentUser, socket]);
 
-  // Handle stream orchestration
+  // Handle stream orchestration: Continuous Publish SFU Model
   useEffect(() => {
-    if (!socket || !mediaStream || !lkRoom) return;
+    if (!mediaStream || !lkRoom || lkRoom.state !== 'disconnected') return;
 
-    const handleStreamRequest = async () => {
-      // ❌ ISSUE: Unsafe null.status access fixed with lkRoom?.state
-      if (lkRoom.state === 'connected') return;
+    let isMounted = true;
 
+    const connectToLiveKit = async () => {
       try {
-        console.log('[Contestant] Received stream-request. Fetching LiveKit token...');
+        console.log('[Contestant] Connecting to LiveKit automatically (Continuous Publish)...');
         const res = await apiFetch(`/api/proctoring/token?room=contest-${contestId}`);
         const data = await res.json();
         
+        if (!isMounted) return;
+
         if (data.token) {
            const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'wss://your-livekit-server.livekit.cloud';
            
-           await lkRoom.connect(livekitUrl, data.token, { autoSubscribe: false });
-           
-           if (mediaStream) {
-             const videoTrack = mediaStream.getVideoTracks()[0];
-             if (videoTrack) {
-               await lkRoom.localParticipant.publishTrack(videoTrack, { name: 'camera', source: Track.Source.Camera });
-             }
-             const audioTrack = mediaStream.getAudioTracks()[0];
-             if (audioTrack) {
-               await lkRoom.localParticipant.publishTrack(audioTrack, { name: 'microphone', source: Track.Source.Microphone });
-             }
-             console.log("Camera and Microphone enabled and published to LiveKit from existing MediaStream.");
-           } else {
-             await lkRoom.localParticipant.setCameraEnabled(true);
-             await lkRoom.localParticipant.setMicrophoneEnabled(true);
+           if (lkRoom.state !== 'connected') {
+             await lkRoom.connect(livekitUrl, data.token, { autoSubscribe: false });
            }
+           
+           const videoTrack = mediaStream.getVideoTracks()[0];
+           if (videoTrack && videoTrack.readyState !== 'ended') {
+             await lkRoom.localParticipant.publishTrack(videoTrack, { name: 'camera', source: Track.Source.Camera });
+           }
+           
+           const audioTrack = mediaStream.getAudioTracks()[0];
+           if (audioTrack && audioTrack.readyState !== 'ended') {
+             await lkRoom.localParticipant.publishTrack(audioTrack, { name: 'microphone', source: Track.Source.Microphone });
+           }
+           
+           console.log("Camera and Microphone enabled and published to LiveKit safely.");
         }
       } catch(e) {
-        console.error('LiveKit connection error:', e);
+        console.error('LiveKit auto-connect error:', e);
       }
     };
 
-    const handleStreamStop = () => {
-      // ❌ ISSUE: Disconnecting recreated room unnecessarily. Now using singleton
-      if (lkRoom.state === 'connected') {
-        console.log('[Contestant] Received stream-stop. Disconnecting Room...');
-        lkRoom.disconnect();
-      }
-    };
-
-    // ❌ ISSUE: Duplicate listener registration fixed by unbinding before bind
-    socket.off('stream-request', handleStreamRequest);
-    socket.off('stream-stop', handleStreamStop);
-    
-    socket.on('stream-request', handleStreamRequest);
-    socket.on('stream-stop', handleStreamStop);
+    connectToLiveKit();
 
     return () => {
-      socket.off('stream-request', handleStreamRequest);
-      socket.off('stream-stop', handleStreamStop);
+      isMounted = false;
     };
-  }, [mediaStream, contestId, socket, lkRoom]);
+  }, [mediaStream, contestId, lkRoom]);
+
+  // Structured Observability for LiveKit
+  useEffect(() => {
+    if (!lkRoom || !currentUser) return;
+
+    const logEvent = (action: string, metadata: any = {}) => {
+      console.log(`[Observability] ${action}`, {
+        contestId,
+        userId: currentUser.id,
+        timestamp: new Date().toISOString(),
+        source: 'WorkspaceShell',
+        ...metadata
+      });
+    };
+
+    const onConnected = () => logEvent('room_connect');
+    const onDisconnected = (reason?: any) => logEvent('room_disconnect', { reason });
+    const onReconnecting = () => logEvent('room_reconnecting');
+    const onReconnected = () => logEvent('room_reconnected');
+    const onLocalTrackPublished = (pub: any) => logEvent('track_published', { trackSid: pub.trackSid, kind: pub.kind });
+    const onLocalTrackUnpublished = (pub: any) => logEvent('track_unpublished', { trackSid: pub.trackSid, kind: pub.kind });
+    
+    lkRoom.on(RoomEvent.Connected, onConnected);
+    lkRoom.on(RoomEvent.Disconnected, onDisconnected);
+    lkRoom.on(RoomEvent.Reconnecting, onReconnecting);
+    lkRoom.on(RoomEvent.Reconnected, onReconnected);
+    lkRoom.on(RoomEvent.LocalTrackPublished, onLocalTrackPublished);
+    lkRoom.on(RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished);
+
+    return () => {
+      lkRoom.off(RoomEvent.Connected, onConnected);
+      lkRoom.off(RoomEvent.Disconnected, onDisconnected);
+      lkRoom.off(RoomEvent.Reconnecting, onReconnecting);
+      lkRoom.off(RoomEvent.Reconnected, onReconnected);
+      lkRoom.off(RoomEvent.LocalTrackPublished, onLocalTrackPublished);
+      lkRoom.off(RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished);
+    };
+  }, [lkRoom, currentUser, contestId]);
 
   const currentProblemList = dynamicProblems.length > 0 ? dynamicProblems : problems;
   

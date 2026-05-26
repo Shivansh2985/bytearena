@@ -305,13 +305,7 @@ eventSub
     try {
       const event = JSON.parse(message) as RedisPubSubEvent;
 
-      if (event.type === 'STREAM_REQUEST') {
-        io.to(`user:${event.userId}`).emit('stream-request', {
-          token: event.liveKitToken,
-        });
-      } else if (event.type === 'STREAM_STOP') {
-        io.to(`user:${event.userId}`).emit('stream-stop');
-      }
+      // STREAM_REQUEST and STREAM_STOP have been deprecated in favor of SFU Continuous Publish
     } catch (err) {
       console.error('Failed to parse redis event', err);
     }
@@ -441,48 +435,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on(
-    'admin:request-stream',
-    async (data: { contestId: string; targetUserId: string }) => {
-      if (role !== 'ADMIN') return;
-
-      try {
-        await pubClient.publish(
-          `contest:${data.contestId}:events`,
-          JSON.stringify({
-            type: 'STREAM_REQUEST',
-            contestId: data.contestId,
-            userId: data.targetUserId,
-            adminId: userId,
-            liveKitToken: `lk_token_${data.targetUserId}_${data.contestId}`,
-          })
-        );
-      } catch (err) {
-        console.error('Failed to publish stream request:', err);
-      }
-    }
-  );
-
-  socket.on(
-    'admin:stop-stream',
-    async (data: { contestId: string; targetUserId: string }) => {
-      if (role !== 'ADMIN') return;
-
-      try {
-        await pubClient.publish(
-          `contest:${data.contestId}:events`,
-          JSON.stringify({
-            type: 'STREAM_STOP',
-            contestId: data.contestId,
-            userId: data.targetUserId,
-            adminId: userId,
-          })
-        );
-      } catch (err) {
-        console.error('Failed to publish stream stop:', err);
-      }
-    }
-  );
 
   socket.on('disconnect', async () => {
     console.log(`User ${userId} disconnected.`);

@@ -227,20 +227,11 @@ function AdminProctoringContent() {
     }
   };
 
-  // Handle Stream Request when Admin views a participant
-  const targetUserId = liveParticipants.find(p => p.id === selectedParticipantId)?.userId || null;
-
+  // Admin Token Fetching - Passive Subscription (SFU Model)
   useEffect(() => {
-    if (!socket || !targetUserId || !selectedContestId) return;
+    if (!selectedContestId) return;
 
-    console.log(`[Admin] Emitting admin:request-stream for user ${targetUserId} in contest ${selectedContestId}`);
-    // 1. Ask backend to notify the contestant to publish
-    socket.emit('admin:request-stream', {
-      contestId: selectedContestId,
-      targetUserId: targetUserId
-    });
-
-    // 2. Admin needs a token to join the room
+    // Admin needs a token to join the room
     if (!fetchedTokensRef.current[selectedContestId]) {
       fetchedTokensRef.current[selectedContestId] = true;
       apiFetch(`/api/proctoring/token?room=contest-${selectedContestId}`)
@@ -255,16 +246,7 @@ function AdminProctoringContent() {
           fetchedTokensRef.current[selectedContestId] = false;
         });
     }
-
-    // 3. Cleanup: Tell contestant to stop publishing
-    return () => {
-      console.log(`[Admin] Emitting admin:stop-stream for user ${targetUserId} in contest ${selectedContestId}`);
-      socket.emit('admin:stop-stream', {
-        contestId: selectedContestId,
-        targetUserId: targetUserId
-      });
-    };
-  }, [socket, targetUserId, selectedContestId]);
+  }, [selectedContestId]);
 
   // Derived state: Merge all live contests from /api/contests with participants data
   const contests = liveContests.map(c => {
