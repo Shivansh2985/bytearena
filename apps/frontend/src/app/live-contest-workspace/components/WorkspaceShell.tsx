@@ -852,12 +852,12 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       }
 
       tabSwitchWarningsRef.current += 1;
-      if (tabSwitchWarningsRef.current >= 3) {
-         alert("You have switched tabs too many times. Your contest is being automatically submitted.");
-         handleEndContest(true);
-      } else {
-         alert(`WARNING: You are not allowed to switch tabs during a live contest. This is warning ${tabSwitchWarningsRef.current} of 2. You will be removed from the contest on the 3rd offense.`);
-      }
+      // if (tabSwitchWarningsRef.current >= 3) {
+      //    alert("You have switched tabs too many times. Your contest is being automatically submitted.");
+      //    handleEndContest(true);
+      // } else {
+      //    alert(`WARNING: You are not allowed to switch tabs during a live contest. This is warning ${tabSwitchWarningsRef.current} of 2. You will be removed from the contest on the 3rd offense.`);
+      // }
     };
     const handleFocus = () => {
       setProctoringWarning(false);

@@ -31,6 +31,7 @@ export default function CreateContestPage() {
   const [description, setDescription] = useState('');
   const [difficulty, setDifficulty] = useState('Medium');
   const [startTime, setStartTime] = useState('');
+  const [durationHours, setDurationHours] = useState(3);
   const [tags, setTags] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -54,7 +55,7 @@ export default function CreateContestPage() {
     setIsSubmitting(true);
     try {
       const start = startTime ? new Date(startTime) : new Date();
-      const end = new Date(start.getTime() + 3 * 60 * 60 * 1000); // Default 3 hours
+      const end = new Date(start.getTime() + durationHours * 60 * 60 * 1000);
 
       const res = await apiFetch('/api/contests', {
         method: 'POST',
@@ -144,13 +145,13 @@ export default function CreateContestPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1.5">Duration *</label>
-                <select className="input-field w-full px-3 py-2.5 text-sm" defaultValue="3 hours">
-                  <option>1 hour</option>
-                  <option>1.5 hours</option>
-                  <option>2 hours</option>
-                  <option>2.5 hours</option>
-                  <option>3 hours</option>
-                  <option>5 hours</option>
+                <select className="input-field w-full px-3 py-2.5 text-sm" value={durationHours} onChange={(e) => setDurationHours(parseFloat(e.target.value))}>
+                  <option value={1}>1 hour</option>
+                  <option value={1.5}>1.5 hours</option>
+                  <option value={2}>2 hours</option>
+                  <option value={2.5}>2.5 hours</option>
+                  <option value={3}>3 hours</option>
+                  <option value={5}>5 hours</option>
                 </select>
               </div>
               <div>
