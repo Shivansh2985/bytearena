@@ -274,6 +274,8 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
   const accessToken = (session as any)?.accessToken;
 
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  const snapshotVideoRef = useRef<HTMLVideoElement | null>(null);
+  const snapshotCanvasRef = useRef<HTMLCanvasElement | null>(null);
   
   // ⚠ ANALYSIS:
   // Current usage: Unused locally.
@@ -427,67 +429,58 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
     try {
       const videoTrack = streamToUse.getVideoTracks()[0];
       if (!videoTrack || videoTrack.readyState === 'ended' || videoTrack.muted) {
-        console.warn('Snapshot blocked: Video track is dead/ended');
+        console.warn('[Snapshot Telemetry] Blocked: Video track is dead/ended or muted.');
         return;
       }
       
-      // Use modern ImageCapture API (Supported natively in Chrome)
-      if (typeof (window as any).ImageCapture !== 'undefined') {
-        try {
-          const imageCapture = new (window as any).ImageCapture(videoTrack);
-          const bitmap = await imageCapture.grabFrame();
-          const canvas = document.createElement('canvas');
-          const scale = Math.min(640 / bitmap.width, 1);
-          canvas.width = bitmap.width * scale;
-          canvas.height = bitmap.height * scale;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-            const imageBase64 = canvas.toDataURL('image/jpeg', 0.4);
-            apiFetch('/api/proctoring/snapshot', {
-              method: 'POST',
-              body: JSON.stringify({ contestId, imageBase64 })
-            }).catch(console.error);
-          }
-          return;
-        } catch (e) {
-          console.warn('ImageCapture failed, falling back to video element', e);
-        }
+      const video = snapshotVideoRef.current;
+      if (!video) {
+        console.warn('[Snapshot Telemetry] Blocked: snapshotVideoRef is null.');
+        return;
+      }
+      
+      if (video.readyState < 2) { // HAVE_CURRENT_DATA = 2
+        console.warn(`[Snapshot Telemetry] Blocked: video.readyState is ${video.readyState}, expected >= 2.`);
+        return;
       }
 
-      // Fallback: Create unattached video
-      const video = document.createElement('video');
-      video.muted = true;
-      video.playsInline = true;
-      video.srcObject = new MediaStream([videoTrack]);
+      if (video.videoWidth === 0 || video.videoHeight === 0) {
+        console.warn('[Snapshot Telemetry] Blocked: video dimensions are 0.');
+        return;
+      }
+
+      if (!snapshotCanvasRef.current) {
+        snapshotCanvasRef.current = document.createElement('canvas');
+      }
+      const canvas = snapshotCanvasRef.current;
+      const scale = Math.min(640 / video.videoWidth, 1);
+      canvas.width = video.videoWidth * scale;
+      canvas.height = video.videoHeight * scale;
       
-      video.onloadeddata = async () => {
-        try {
-          await video.play();
-          const canvas = document.createElement('canvas');
-          const scale = Math.min(640 / video.videoWidth, 1);
-          canvas.width = video.videoWidth * scale;
-          canvas.height = video.videoHeight * scale;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const imageBase64 = canvas.toDataURL('image/jpeg', 0.4);
-            apiFetch('/api/proctoring/snapshot', {
-              method: 'POST',
-              body: JSON.stringify({ contestId, imageBase64 })
-            }).catch(console.error);
-          }
-        } catch (e) {
-            console.error('Video playback for snapshot failed', e);
-        } finally {
-          video.srcObject = null;
-          video.onloadeddata = null;
-        }
-      };
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageBase64 = canvas.toDataURL('image/jpeg', 0.4);
+        console.log(`[Snapshot Telemetry] Captured frame ${canvas.width}x${canvas.height}. Uploading...`);
+        apiFetch('/api/proctoring/snapshot', {
+          method: 'POST',
+          body: JSON.stringify({ contestId, imageBase64 })
+        })
+        .then(() => console.log('[Snapshot Telemetry] Upload success.'))
+        .catch(err => console.error('[Snapshot Telemetry] Upload failed:', err));
+      }
     } catch (err) {
-      console.error("Snapshot error:", err);
+      console.error("[Snapshot Telemetry] Snapshot error:", err);
     }
   }, [contestId, isCompleted]);
+
+  // Keep the persistent snapshot video connected to the camera stream
+  useEffect(() => {
+    if (snapshotVideoRef.current && mediaStream) {
+      snapshotVideoRef.current.srcObject = mediaStream;
+      snapshotVideoRef.current.play().catch(e => console.warn('[Snapshot Telemetry] Video play failed:', e));
+    }
+  }, [mediaStream]);
 
   const recoverStream = useCallback(async () => {
     try {
@@ -1183,6 +1176,25 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
         contestTitle={contestTitle}
         contestStartTime={contestStartTime}
         contestEndTime={contestEndTime}
+      />
+
+      {/* Persistent, invisible Video Element to serve as the continuous Snapshot Source without triggering Safari suspension */}
+      <video 
+        ref={snapshotVideoRef} 
+        muted 
+        autoPlay
+        playsInline 
+        style={{
+          position: 'absolute',
+          width: '1px',
+          height: '1px',
+          padding: 0,
+          margin: '-1px',
+          overflow: 'hidden',
+          clip: 'rect(0, 0, 0, 0)',
+          whiteSpace: 'nowrap',
+          borderWidth: 0,
+        }}
       />
 
       {/* Main workspace */}

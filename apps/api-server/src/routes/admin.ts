@@ -51,7 +51,7 @@ router.get('/', requireAdmin, async (req: Request, res: Response) => {
         let cameraStatus = 'away';
         if (latestSnap) {
           const snapAgeMinutes = (Date.now() - latestSnap.createdAt.getTime()) / (1000 * 60);
-          cameraStatus = snapAgeMinutes > 5 ? 'away' : 'active';
+          cameraStatus = snapAgeMinutes > 1.5 ? 'away' : 'active';
         }
 
         return {

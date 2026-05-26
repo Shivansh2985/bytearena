@@ -483,25 +483,29 @@ function AdminProctoringContent() {
                   {/* Left side: Instant Video Stream */}
                   <div className="flex flex-col w-full md:w-2/3 border-b md:border-b-0 md:border-r border-border h-full min-h-0">
                     <div className="flex-1 bg-slate-950 relative min-h-0">
-                    {selectedParticipant.cameraStatus === 'active' ? (
-                      livekitTokens[selectedContestId!] ? (
-                        <LiveKitRoom
-                          video={false}
-                          audio={false}
-                          connect={true}
-                          token={livekitTokens[selectedContestId!]}
-                          serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL || 'wss://your-livekit-server.livekit.cloud'}
-                          className="w-full h-full min-h-0 flex"
-                        >
-                          <SingleParticipantVideo identity={selectedParticipant.userId} contestId={selectedContestId!} />
-                        </LiveKitRoom>
-                      ) : (
-                         <div className="w-full h-full flex items-center justify-center text-muted-foreground">Initializing connection...</div>
-                      )
+                    {/* Live Stream Always Rendered */}
+                    {livekitTokens[selectedContestId!] ? (
+                      <LiveKitRoom
+                        video={false}
+                        audio={false}
+                        connect={true}
+                        token={livekitTokens[selectedContestId!]}
+                        serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL || 'wss://your-livekit-server.livekit.cloud'}
+                        className="w-full h-full min-h-0 flex"
+                      >
+                        <SingleParticipantVideo identity={selectedParticipant.userId} contestId={selectedContestId!} />
+                      </LiveKitRoom>
                     ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center">
-                        <CameraOff size={48} className="text-red-400 mb-4 opacity-80" />
-                        <p className="text-lg text-red-400 font-medium">CAMERA_OFF / {selectedParticipant.cameraStatus.toUpperCase()}</p>
+                        <div className="w-full h-full flex items-center justify-center text-muted-foreground">Initializing connection...</div>
+                    )}
+                    
+                    {/* Warning Overlay if away/blocked */}
+                    {selectedParticipant.cameraStatus !== 'active' && (
+                      <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px]">
+                        <CameraOff size={48} className="text-red-400 mb-4 opacity-90 drop-shadow-md" />
+                        <p className="text-lg text-red-400 font-medium drop-shadow-md bg-black/60 px-4 py-2 rounded-full border border-red-500/30">
+                          CAMERA_OFF / {selectedParticipant.cameraStatus.toUpperCase()}
+                        </p>
                       </div>
                     )}
                     {/* Overlay Tag */}
