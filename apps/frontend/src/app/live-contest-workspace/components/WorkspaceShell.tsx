@@ -613,8 +613,10 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       // setIsFullscreen(true); // Disabled for testing
       setMediaStream(stream);
       
-      // Take first snapshot immediately
-      takeSnapshot(stream);
+      // Take first snapshot immediately after DOM updates
+      setTimeout(() => {
+        takeSnapshot(stream);
+      }, 1000);
 
       // Start taking periodic snapshots
       if (snapshotIntervalRef.current) clearInterval(snapshotIntervalRef.current);
