@@ -21,7 +21,7 @@ interface ContestTopBarProps {
   runResult: RunResult;
   mediaStream?: MediaStream | null;
   cameraBlocked?: boolean;
-  onEndContest?: () => void;
+  onEndContest?: (forced?: boolean) => void;
   isCompleted?: boolean;
   contestTitle?: string;
   contestStartTime?: number | null;
@@ -38,8 +38,9 @@ const languages: { value: Language; label: string }[] = [
 const CONTEST_DURATION = 2 * 60 * 60 * 1000; // 2 hours
 const CONTEST_START = Date.now() - 23 * 60 * 1000; // started 23 min ago
 
-function ContestTimer({ startTime, endTime }: { startTime?: number | null, endTime?: number | null }) {
+function ContestTimer({ startTime, endTime, onTimeUp }: { startTime?: number | null, endTime?: number | null, onTimeUp?: () => void }) {
   const [elapsed, setElapsed] = useState(0);
+  const [hasEnded, setHasEnded] = useState(false);
 
   useEffect(() => {
     const start = startTime || CONTEST_START;
@@ -51,6 +52,14 @@ function ContestTimer({ startTime, endTime }: { startTime?: number | null, endTi
 
   const duration = endTime && startTime ? endTime - startTime : CONTEST_DURATION;
   const remaining = Math.max(0, duration - elapsed);
+
+  useEffect(() => {
+    if (remaining === 0 && !hasEnded && onTimeUp) {
+      setHasEnded(true);
+      onTimeUp();
+    }
+  }, [remaining, hasEnded, onTimeUp]);
+
   const h = Math.floor(remaining / 3600000);
   const m = Math.floor((remaining % 3600000) / 60000);
   const s = Math.floor((remaining % 60000) / 1000);
@@ -160,7 +169,7 @@ export default function ContestTopBar({
           <span className="text-[10px] font-bold uppercase tracking-wider">Completed</span>
         </div>
       ) : (
-        <ContestTimer startTime={contestStartTime} endTime={contestEndTime} />
+        <ContestTimer startTime={contestStartTime} endTime={contestEndTime} onTimeUp={() => onEndContest?.(true)} />
       )}
 
       {/* Spacer */}
@@ -261,7 +270,7 @@ export default function ContestTopBar({
       {/* End Contest */}
       {!isCompleted && (
         <button
-          onClick={onEndContest}
+          onClick={() => onEndContest?.()}
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-semibold shadow-[0_0_15px_rgba(220,38,38,0.3)] transition-all duration-150 active:scale-95"
         >
           End Contest

@@ -889,13 +889,9 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
     };
   }, []);
 
-  // ✅ SAFE FIX: Cleanup for hardware resources when stream changes or unmounts.
+  // ✅ SAFE FIX: We no longer stop tracks on unmount because React Strict Mode will kill the stream on its test unmount cycle. The browser automatically releases the hardware when the page is closed or navigated away.
   useEffect(() => {
-    return () => {
-      if (mediaStream) {
-        mediaStream.getTracks().forEach(track => track.stop());
-      }
-    };
+    // Intentionally empty: do not stop tracks here.
   }, [mediaStream]);
 
   // Auto-save simulation
