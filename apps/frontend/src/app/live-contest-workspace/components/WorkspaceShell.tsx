@@ -600,7 +600,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
   const requestPermissions = async () => {
     if (isCompleted) return;
     try {
-      // await document.documentElement.requestFullscreen(); // Disabled for testing
+      await document.documentElement.requestFullscreen().catch(e => console.warn('Fullscreen request failed:', e));
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: true, 
         audio: {
@@ -610,7 +610,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
         } 
       });
       setPermissionsGranted(true);
-      // setIsFullscreen(true); // Disabled for testing
+      setIsFullscreen(true);
       setMediaStream(stream);
       
       // Take first snapshot immediately after DOM updates
@@ -628,7 +628,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
         } else {
            takeSnapshot(stream);
         }
-      }, 15 * 1000); // 15 seconds for testing (was 3 mins)
+      }, 3 * 60 * 1000); // 3 minutes
 
     } catch (err) {
       alert("Camera and Microphone permissions are required to start the contest!");
@@ -934,12 +934,12 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       }
 
       tabSwitchWarningsRef.current += 1;
-      // if (tabSwitchWarningsRef.current >= 3) {
-      //    alert("You have switched tabs too many times. Your contest is being automatically submitted.");
-      //    handleEndContest(true);
-      // } else {
-      //    alert(`WARNING: You are not allowed to switch tabs during a live contest. This is warning ${tabSwitchWarningsRef.current} of 2. You will be removed from the contest on the 3rd offense.`);
-      // }
+      if (tabSwitchWarningsRef.current >= 3) {
+         alert("You have switched tabs too many times. Your contest is being automatically submitted.");
+         handleEndContest(true);
+      } else {
+         alert(`WARNING: You are not allowed to switch tabs during a live contest. This is warning ${tabSwitchWarningsRef.current} of 2. You will be removed from the contest on the 3rd offense.`);
+      }
     };
     const handleFocus = () => {
       setProctoringWarning(false);
@@ -963,12 +963,12 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
 
   useEffect(() => {
     const handleFullscreenChange = () => {
-      // if (!document.fullscreenElement) {
-      //   alert('You exited fullscreen mode. Your contest has been automatically submitted to prevent cheating.');
-      //   submitContest();
-      // } else {
-      //   setIsFullscreen(true);
-      // }
+      if (!document.fullscreenElement) {
+        alert('You exited fullscreen mode. Your contest has been automatically submitted to prevent cheating.');
+        handleEndContest(true);
+      } else {
+        setIsFullscreen(true);
+      }
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => {
