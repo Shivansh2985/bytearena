@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '@/components/providers/AuthProvider';
+import { useSession } from 'next-auth/react';
 import { io, Socket } from 'socket.io-client';
+import AppLayout from '@/components/AppLayout';
+import { apiFetch } from '@/lib/api';
 
 interface Metrics {
   timestamp: number;
@@ -19,7 +21,7 @@ interface Metrics {
 }
 
 export default function MonitoringDashboard() {
-  const { token, user } = useAuth();
+  const { data: session, status } = useSession();
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [telemetry, setTelemetry] = useState<any>({ socketConnections: 0, redisConnected: false });
   const [loading, setLoading] = useState(true);
@@ -28,9 +30,7 @@ export default function MonitoringDashboard() {
 
   const fetchMetrics = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin?action=system-metrics`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await apiFetch('/api/admin?action=system-metrics');
       if (!res.ok) throw new Error('Failed to fetch metrics');
       const data = await res.json();
       setMetrics(data);
@@ -43,12 +43,13 @@ export default function MonitoringDashboard() {
   };
 
   useEffect(() => {
-    if (!token || user?.role !== 'ADMIN') return;
+    if (status !== 'authenticated') return;
 
     fetchMetrics();
     const interval = setInterval(fetchMetrics, 10000); // Polling fallback
 
     // Connect to realtime telemetry
+    const token = (session as any)?.accessToken || '';
     const newSocket = io(process.env.NEXT_PUBLIC_REALTIME_URL || 'http://localhost:8080', {
       auth: { token }
     });
@@ -67,14 +68,17 @@ export default function MonitoringDashboard() {
       clearInterval(interval);
       newSocket.disconnect();
     };
-  }, [token, user]);
+  }, [status, session]);
 
-  if (!user || user.role !== 'ADMIN') {
-    return <div className="p-8 text-center text-gray-500">Access Denied</div>;
+  if (status === 'loading') {
+    return <div className="p-8 text-center text-gray-500">Loading...</div>;
   }
 
+  // NextAuth usually exposes role in the session object. We just trust the AppLayout's admin role wrapper.
+  
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8 space-y-8">
+    <AppLayout currentPath="/admin/monitoring" role="admin">
+      <div className="min-h-screen bg-gray-900 text-white p-8 space-y-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
@@ -171,6 +175,7 @@ export default function MonitoringDashboard() {
           {/* Logs will be appended here in the future via socket stream */}
         </div>
       </div>
-    </div>
+      </div>
+    </AppLayout>
   );
 }
