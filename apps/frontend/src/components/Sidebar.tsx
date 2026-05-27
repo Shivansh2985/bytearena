@@ -21,6 +21,7 @@ import {
   Eye,
   Star,
   PlusCircle,
+  Activity,
 } from 'lucide-react';
 import Icon from '@/components/ui/AppIcon';
 
@@ -83,6 +84,7 @@ const adminNavGroups: NavGroup[] = [
     items: [
       { icon: LayoutDashboard, label: 'Dashboard', href: '/admin/dashboard', badge: null },
       { icon: BarChart3, label: 'Analytics', href: '/admin/analytics', badge: null },
+      { icon: Activity, label: 'Observability', href: '/admin/monitoring', badge: 'Live' },
     ],
   },
   {
