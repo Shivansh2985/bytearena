@@ -123,11 +123,13 @@
 
 import express from 'express';
 import cors from 'cors';
-import { createClient } from 'redis';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import RedisStore from 'rate-limit-redis';
 import { v2 as cloudinary } from 'cloudinary';
+import { getRedisClient, closeRedisConnections } from './lib/redis';
+import { logger } from './services/observability/logger';
+import { requestLogger } from './middleware/observability';
 
 // ─────────────────────────────────────────────────────────────
 // Load Environment Variables
@@ -141,6 +143,8 @@ const app = express();
 
 // IMPORTANT for Railway / Vercel proxy support
 app.set('trust proxy', 1);
+
+app.use(requestLogger);
 
 // ─────────────────────────────────────────────────────────────
 // Body Parsing
@@ -192,22 +196,7 @@ cloudinary.config({
 // ─────────────────────────────────────────────────────────────
 // Redis Configuration
 // ─────────────────────────────────────────────────────────────
-const redis = createClient({
-  url: process.env.REDIS_URL || 'redis://localhost:6379',
-});
-
-redis.on('error', (err) => {
-  console.error('❌ Redis Error:', err);
-});
-
-(async () => {
-  try {
-    await redis.connect();
-    console.log('✅ Redis Connected');
-  } catch (err: any) {
-    console.warn('⚠️ Redis connection failed:', err.message);
-  }
-})();
+const redis = getRedisClient();
 
 // ─────────────────────────────────────────────────────────────
 // Rate Limiter
@@ -216,7 +205,8 @@ let limiterStore: any = undefined;
 
 if (process.env.REDIS_URL) {
   limiterStore = new RedisStore({
-    sendCommand: (...args: string[]) => redis.sendCommand(args),
+    // @ts-ignore
+    sendCommand: (...args: string[]) => redis.call(...args),
   });
 }
 
@@ -246,10 +236,12 @@ app.get('/health', (_req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// BullMQ Workers / Queues
+// BullMQ Queues (Producers ONLY, no consumers)
 // ─────────────────────────────────────────────────────────────
 import './queues';
-import './workers/judgeWorker';
+// REMOVED: import './workers/judgeWorker';
+// Worker must be started separately via worker.ts
+
 
 // ─────────────────────────────────────────────────────────────
 // Route Imports
@@ -314,29 +306,26 @@ app.use(
 // ─────────────────────────────────────────────────────────────
 const PORT = Number(process.env.PORT) || 3001;
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🚀 ByteArena API Server running on port ${PORT}`);
-
-  console.log(`✅ Health check endpoint enabled at /health`);
-
-  console.log(`📦 Routes Mounted:`);
-
-  console.log(`   - /api/admin`);
-
-  console.log(`   - /api/contests`);
-
-  console.log(`   - /api/users`);
-
-  console.log(`   - /api/questions`);
-
-  console.log(`   - /api/submissions`);
-
-  console.log(`   - /api/judge`);
-
-  console.log(`   - /api/proctoring`);
-
-  console.log(`   - /api/uploads\n`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+  logger.info('server_startup', { port: PORT }, `🚀 ByteArena API Server running on port ${PORT}`);
 });
+
+// ─────────────────────────────────────────────────────────────
+// Graceful Shutdown
+// ─────────────────────────────────────────────────────────────
+const shutdown = async (signal: string) => {
+  logger.info('server_shutdown', { signal }, `Received ${signal}, starting graceful shutdown...`);
+  
+  server.close(async () => {
+    logger.info('server_shutdown_http', {}, 'HTTP server closed.');
+    await closeRedisConnections();
+    logger.info('server_shutdown_complete', {}, 'Shutdown complete.');
+    process.exit(0);
+  });
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 // ─────────────────────────────────────────────────────────────
 // Exports

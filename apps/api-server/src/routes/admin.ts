@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '@bytearena/database';
 import { requireAdmin } from '../middleware/auth';
+import { getSystemMetrics } from '../services/observability/metrics';
 
 const router = Router();
 
@@ -87,6 +88,12 @@ router.get('/', requireAdmin, async (req: Request, res: Response) => {
         avgRating: 1200
       });
     }
+
+    if (action === 'system-metrics') {
+      const metrics = await getSystemMetrics();
+      return res.json(metrics);
+    }
+    
     return res.status(400).json({ error: 'Invalid action' });
   } catch (error) {
     console.error('Admin API error:', error);

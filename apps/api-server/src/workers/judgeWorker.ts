@@ -2,18 +2,16 @@ import { Worker, Job } from 'bullmq';
 import IORedis from 'ioredis';
 import { prisma } from '@bytearena/database';
 import dotenv from 'dotenv';
+import { logger } from '../services/observability/logger';
 
 dotenv.config();
 
 // ─────────────────────────────────────────────────────────────
 // Redis Connection
 // ─────────────────────────────────────────────────────────────
-const connection = new IORedis(
-  process.env.REDIS_URL || 'redis://localhost:6379',
-  {
-    maxRetriesPerRequest: null,
-  }
-);
+import { getBullMQClient } from '../lib/redis';
+
+const connection = getBullMQClient();
 
 // ─────────────────────────────────────────────────────────────
 // Judge0 Configuration
@@ -477,19 +475,33 @@ export const judgeWorker = new Worker(
 // BullMQ Worker Event Logs
 // ─────────────────────────────────────────────────────────────
 judgeWorker.on('ready', () => {
-  console.log('✅ BullMQ worker started & ready for queue: judgeQueue');
+  logger.info('worker_ready', { workerId: judgeWorker.id }, '✅ BullMQ worker started & ready for queue: judgeQueue');
 });
 
 judgeWorker.on('active', (job: Job) => {
-  console.log(`📥 Job received: ${job.id} [action: ${job.data.action}, language: ${job.data.language}, problemId: ${job.data.problemId}]`);
+  logger.info('job_active', { 
+    workerId: judgeWorker.id,
+    jobId: job.id,
+    action: job.data.action,
+    language: job.data.language,
+    problemId: job.data.problemId
+  }, `📥 Job received: ${job.id}`);
 });
 
 judgeWorker.on('completed', (job: Job, result: any) => {
-  console.log(`✨ Job completed: ${job.id} with status: ${result?.status}`);
+  logger.info('job_completed', { 
+    workerId: judgeWorker.id,
+    jobId: job.id,
+    status: result?.status 
+  }, `✨ Job completed: ${job.id}`);
 });
 
 judgeWorker.on('failed', (job: Job | undefined, err: Error) => {
-  console.error(`❌ Job failed: ${job?.id || 'unknown'} - Error:`, err);
+  logger.error('job_failed', { 
+    workerId: judgeWorker.id,
+    jobId: job?.id,
+    error: err.message
+  }, `❌ Job failed: ${job?.id || 'unknown'}`);
 });
 
-console.log('✅ Judge Worker initialized');
+logger.info('judge_worker_init', {}, '✅ Judge Worker initialized');

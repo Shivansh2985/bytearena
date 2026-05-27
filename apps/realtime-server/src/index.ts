@@ -332,15 +332,10 @@ setInterval(async () => {
       const dataStr = await pubClient.get(key);
       if (dataStr) {
         const data = JSON.parse(dataStr);
-        // If last seen is older than 60 seconds
         if (now - data.lastSeen > 60000) {
            const userId = key.split(':')[1];
            console.log(`Sweeping stale user ${userId}`);
            await pubClient.del(key);
-           
-           // Remove from LiveKit room if we have a way to know the contest,
-           // or we can let LiveKit's own timeout handle it.
-           // Disconnect any lingering socket
            io.in(`user:${userId}`).disconnectSockets();
         }
       }
@@ -349,6 +344,21 @@ setInterval(async () => {
     console.warn('Heartbeat sweep failed', err);
   }
 }, 30000);
+
+// Admin Telemetry Broadcaster (every 10 seconds)
+setInterval(async () => {
+  try {
+    const clientsCount = io.engine.clientsCount;
+    // Broadcast lightweight realtime stats to admin dashboard
+    io.to('admin-room').emit('admin:telemetry', {
+      timestamp: Date.now(),
+      socketConnections: clientsCount,
+      redisConnected: pubClient.isOpen,
+    });
+  } catch (err) {
+    // Ignore telemetry errors to avoid crash
+  }
+}, 10000);
 
 io.on('connection', (socket) => {
   const { userId, role } = socket.data as SocketData;
