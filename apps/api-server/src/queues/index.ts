@@ -4,7 +4,7 @@ import { getBullMQClient } from '../lib/redis';
 
 dotenv.config();
 
-const connection = getBullMQClient();
+const connection = getBullMQClient() as any;
 
 export const judgeQueue = new Queue('judgeQueue', { connection });
 export const snapshotQueue = new Queue('snapshotQueue', { connection });

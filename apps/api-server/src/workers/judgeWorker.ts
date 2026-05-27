@@ -468,14 +468,21 @@ export const judgeWorker = new Worker(
       testcaseResults,
     };
   },
-  { connection }
+  { 
+    connection: connection as any,
+    drainDelay: 15,
+    stalledInterval: 60000,
+    lockDuration: 120000,
+    metrics: { maxDataPoints: 100 },
+  }
 );
 
 // ─────────────────────────────────────────────────────────────
 // BullMQ Worker Event Logs
 // ─────────────────────────────────────────────────────────────
 judgeWorker.on('ready', () => {
-  logger.info('worker_ready', { workerId: judgeWorker.id }, '✅ BullMQ worker started & ready for queue: judgeQueue');
+  console.log(`[Worker] Judge worker booted with PID ${process.pid}`);
+  logger.info('worker_ready', { workerId: judgeWorker.id, pid: process.pid }, '✅ BullMQ worker started & ready for queue: judgeQueue');
 });
 
 judgeWorker.on('active', (job: Job) => {

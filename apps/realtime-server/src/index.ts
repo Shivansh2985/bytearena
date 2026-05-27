@@ -257,7 +257,11 @@ const io = new Server(httpServer, {
   },
 });
 
+// Apply Redis adapter globally (used by default namespace)
 io.adapter(createAdapter(pubClient, subClient));
+
+// Telemetry namespace
+const telemetryIo = io.of('/telemetry');
 
 type Role = 'ADMIN' | 'USER';
 
@@ -275,7 +279,7 @@ interface AuthTokenPayload extends JwtPayload {
   email?: string;
 }
 
-io.use((socket, next) => {
+const authMiddleware = (socket: any, next: any) => {
   const token = socket.handshake.auth?.token;
 
   if (!token) {
@@ -298,7 +302,47 @@ io.use((socket, next) => {
   } catch {
     return next(new Error('Authentication error: Invalid token'));
   }
+};
+
+io.use(authMiddleware);
+telemetryIo.use(authMiddleware);
+
+// --- TELEMETRY LOGIC ---
+const activeTelemetryAdmins = new Set<any>();
+
+telemetryIo.on('connection', (socket) => {
+  const { userId, role, email } = socket.data as SocketData;
+
+  // Extract User-Agent and IP Address safely
+  const userAgent = socket.handshake.headers['user-agent'] || 'Unknown Device';
+  const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || 'Unknown IP';
+
+  if (role === 'ADMIN') {
+    activeTelemetryAdmins.add(socket);
+    socket.on('disconnect', () => activeTelemetryAdmins.delete(socket));
+  }
+
+  socket.on('client:logs_batch', (logsBatch: any) => {
+    // Lazy Broadcast Safeguard: Only process if admin is actively listening locally
+    if (activeTelemetryAdmins.size === 0) return;
+
+    // Enrich logs and broadcast
+    const enrichedPayload = {
+      userId,
+      email: email || 'unknown',
+      userAgent,
+      ip,
+      logs: logsBatch
+    };
+
+    // Directly emit to local admin sockets. This completely bypasses the Redis adapter 
+    // and prevents expensive PUBLISH commands across the cluster.
+    activeTelemetryAdmins.forEach(adminSocket => {
+      adminSocket.emit('admin:client_logs_batch', enrichedPayload);
+    });
+  });
 });
+// -------------------------
 
 eventSub
   .pSubscribe('contest:*:events', (message) => {
@@ -326,9 +370,8 @@ app.get('/health', (_req, res) => {
 // Periodic heartbeat sweeper for stale connections (every 30 seconds)
 setInterval(async () => {
   try {
-    const keys = await pubClient.keys('presence:*');
     const now = Date.now();
-    for (const key of keys) {
+    for await (const key of pubClient.scanIterator({ MATCH: 'presence:*', COUNT: 100 })) {
       const dataStr = await pubClient.get(key);
       if (dataStr) {
         const data = JSON.parse(dataStr);
@@ -348,12 +391,16 @@ setInterval(async () => {
 // Admin Telemetry Broadcaster (every 10 seconds)
 setInterval(async () => {
   try {
+    if (activeTelemetryAdmins.size === 0) return;
+
     const clientsCount = io.engine.clientsCount;
-    // Broadcast lightweight realtime stats to admin dashboard
-    io.to('admin-room').emit('admin:telemetry', {
-      timestamp: Date.now(),
-      socketConnections: clientsCount,
-      redisConnected: pubClient.isOpen,
+    // Broadcast lightweight realtime stats to admin dashboard on /telemetry
+    activeTelemetryAdmins.forEach(adminSocket => {
+      adminSocket.emit('admin:telemetry', {
+        timestamp: Date.now(),
+        socketConnections: clientsCount,
+        redisConnected: pubClient.isOpen,
+      });
     });
   } catch (err) {
     // Ignore telemetry errors to avoid crash

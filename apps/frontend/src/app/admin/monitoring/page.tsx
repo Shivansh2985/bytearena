@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { io, Socket } from 'socket.io-client';
+import { Socket } from 'socket.io-client';
+import { getSocket } from '@/lib/socket';
 import AppLayout from '@/components/AppLayout';
 import { apiFetch } from '@/lib/api';
 
@@ -42,31 +43,67 @@ export default function MonitoringDashboard() {
     }
   };
 
+  const [clientLogs, setClientLogs] = useState<any[]>([]);
+
   useEffect(() => {
     if (status !== 'authenticated') return;
 
     fetchMetrics();
     const interval = setInterval(fetchMetrics, 10000); // Polling fallback
 
-    // Connect to realtime telemetry
     const token = (session as any)?.accessToken || '';
-    const newSocket = io(process.env.NEXT_PUBLIC_REALTIME_URL || 'http://localhost:8080', {
-      auth: { token }
-    });
+    
+    // Connect to /telemetry namespace
+    const { getTelemetrySocket } = require('@/lib/socket');
+    let tSocket = getTelemetrySocket(token, process.env.NEXT_PUBLIC_REALTIME_URL);
 
-    newSocket.on('connect', () => {
-      console.log('[Monitoring] Connected to telemetry socket');
-    });
+    const onConnect = () => console.log('[Monitoring] Connected to telemetry socket');
+    const onTelemetry = (data: any) => setTelemetry((prev: any) => ({ ...prev, ...data }));
+    const onClientLogs = (batch: any) => {
+      setClientLogs((prev) => {
+        // Keep last 100 log batches
+        const newLogs = [batch, ...prev];
+        return newLogs.slice(0, 100);
+      });
+    };
 
-    newSocket.on('admin:telemetry', (data) => {
-      setTelemetry((prev: any) => ({ ...prev, ...data }));
-    });
+    const attachListeners = (s: Socket) => {
+      s.on('connect', onConnect);
+      s.on('admin:telemetry', onTelemetry);
+      s.on('admin:client_logs_batch', onClientLogs);
+    };
 
-    setSocket(newSocket);
+    const removeListeners = (s: Socket) => {
+      s.off('connect', onConnect);
+      s.off('admin:telemetry', onTelemetry);
+      s.off('admin:client_logs_batch', onClientLogs);
+    };
+
+    if (tSocket) attachListeners(tSocket);
+    setSocket(tSocket);
+
+    // Hidden-tab suppression: Disconnect telemetry when admin tab is hidden to save backend cycles
+    const handleVisibilityChange = () => {
+      if (!tSocket) return;
+      if (document.hidden) {
+        console.log('[Monitoring] Tab hidden. Disconnecting telemetry to save resources.');
+        tSocket.disconnect();
+      } else {
+        console.log('[Monitoring] Tab visible. Reconnecting telemetry.');
+        tSocket.connect();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       clearInterval(interval);
-      newSocket.disconnect();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (tSocket) {
+        removeListeners(tSocket);
+        // Clean disconnect on unmount
+        tSocket.disconnect();
+      }
     };
   }, [status, session]);
 
@@ -169,10 +206,37 @@ export default function MonitoringDashboard() {
       ) : null}
 
       <div className="bg-gray-800/50 border border-gray-700 p-6 rounded-2xl backdrop-blur-sm mt-8">
-        <h2 className="text-lg font-semibold mb-4 text-blue-400">Live Event Log</h2>
-        <div className="bg-gray-900/50 p-4 rounded-xl font-mono text-sm text-gray-300 h-64 overflow-y-auto">
-          <p className="text-gray-500">Live telemetry connection established. Waiting for structured events...</p>
-          {/* Logs will be appended here in the future via socket stream */}
+        <h2 className="text-lg font-semibold mb-4 text-blue-400">Live Client Event Log</h2>
+        <div className="bg-gray-900/50 p-4 rounded-xl font-mono text-xs text-gray-300 h-96 overflow-y-auto space-y-2">
+          {clientLogs.length === 0 ? (
+            <p className="text-gray-500">Waiting for telemetry batches from active clients...</p>
+          ) : (
+            clientLogs.map((batch, i) => (
+              <div key={i} className="border-b border-gray-800 pb-2 mb-2">
+                <div className="flex items-center space-x-3 text-gray-400 mb-1">
+                  <span className="text-purple-400 font-bold">{batch.email}</span>
+                  <span className="text-gray-500">|</span>
+                  <span className="text-blue-300">{batch.ip}</span>
+                  <span className="text-gray-500">|</span>
+                  <span className="truncate max-w-xs">{batch.userAgent}</span>
+                </div>
+                {batch.logs?.map((log: any, j: number) => (
+                  <div key={j} className="pl-4">
+                    <span className="text-gray-500 mr-2">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+                    <span className={log.level === 'error' ? 'text-red-400' : log.level === 'warn' ? 'text-yellow-400' : 'text-green-400'}>
+                      [{log.level.toUpperCase()}]
+                    </span>
+                    <span className="ml-2 text-gray-200">{log.message}</span>
+                    {log.data && (
+                      <pre className="mt-1 text-gray-500 text-[10px] pl-4 whitespace-pre-wrap">
+                        {log.data}
+                      </pre>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))
+          )}
         </div>
       </div>
       </div>
