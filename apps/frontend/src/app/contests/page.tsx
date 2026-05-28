@@ -19,6 +19,7 @@ interface Contest {
   myRank?: number | null;
   myScore?: number | null;
   registered?: boolean;
+  resultsPublished?: boolean;
 }
 
 // Removed mock data
@@ -227,6 +228,13 @@ export default function ContestsPage() {
                 }`}>
                   {isRegistering === c.id ? 'Registering...' : (c.registered ? '✓ Registered' : 'Register Now')}
                 </button>
+              ) : c.status === 'completed' && c.resultsPublished ? (
+                <Link href={`/contests/${c.id}/results`} className="block w-full">
+                  <button className="w-full py-2 rounded-lg text-xs font-semibold bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 transition-colors flex items-center justify-center gap-1.5">
+                    View Results & Leaderboard
+                    <ArrowRight size={12} />
+                  </button>
+                </Link>
               ) : (
                 <Link href={`/live-contest-workspace/${c.id}`} className="block w-full">
                   <button className="w-full py-2 rounded-lg text-xs font-semibold border border-border text-muted-foreground hover:text-foreground hover:border-sky-500/30 transition-colors flex items-center justify-center gap-1.5">

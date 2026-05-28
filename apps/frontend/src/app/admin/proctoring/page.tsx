@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Eye, AlertTriangle, Camera, CameraOff, Monitor, ShieldOff, Users, Activity, X, CheckCircle, ChevronRight, Video, Volume2, VolumeX, Maximize, UserX, Mic, MicOff } from 'lucide-react';
 import { useSocket } from '@/providers/SocketProvider';
+import { trackedOn, trackedOff } from '@/lib/socket';
 import { useSession } from 'next-auth/react';
 import { LiveKitRoom, useRemoteParticipant, VideoTrack, AudioTrack, useConnectionState } from '@livekit/components-react';
 import { Track, Room, createLocalAudioTrack } from 'livekit-client';

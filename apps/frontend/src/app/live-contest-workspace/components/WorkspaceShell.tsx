@@ -11,6 +11,7 @@ import confetti from 'canvas-confetti';
 import { Track, RoomEvent, Room } from 'livekit-client';
 import { useSession } from 'next-auth/react';
 import { useSocket } from '@/providers/SocketProvider';
+import { trackedOn, trackedOff } from '@/lib/socket';
 import { useLiveKit } from '@/providers/LiveKitProvider';
 
 export type ProblemStatus = 'unattempted' | 'attempted' | 'answered';

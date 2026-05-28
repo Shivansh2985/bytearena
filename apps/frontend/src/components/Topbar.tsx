@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Menu, Bell, Search, Zap, ChevronDown } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { useSocket } from '@/providers/SocketProvider';
+import { trackedOn, trackedOff } from '@/lib/socket';
 import { apiFetch } from '@/lib/api';
 
 interface TopbarProps {

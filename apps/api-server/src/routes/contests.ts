@@ -35,7 +35,7 @@ router.get('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     const [contests, total] = await Promise.all([
       prisma.contest.findMany({
         where: whereClause,
-        orderBy: { startTime: 'asc' },
+        orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
         include: {
@@ -165,6 +165,7 @@ router.get('/my-contests', requireAuth, async (req: AuthRequest, res: Response) 
         totalQuestions: c._count.questions,
         myRank: c.participants?.length > 0 ? c.participants[0].rank : null,
         myScore: c.participants?.length > 0 ? c.participants[0].score : null,
+        resultsPublished: c.resultsPublished,
       };
     });
 
