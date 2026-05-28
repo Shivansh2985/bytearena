@@ -2,7 +2,7 @@
 import { apiFetch } from '@/lib/api';
 import React, { useState } from 'react';
 import AppLayout from '@/components/AppLayout';
-import { Save, ArrowLeft, Trash2, Plus } from 'lucide-react';
+import { Save, ArrowLeft, Trash2, Plus, Download, X } from 'lucide-react';
 import Link from 'next/link';
 
 interface TestCase {
@@ -16,6 +16,11 @@ interface Question {
   id: string;
   title: string;
   description: string;
+  inputFormat?: string;
+  outputFormat?: string;
+  constraints?: string;
+  timeLimit?: number;
+  hints?: string[];
   difficulty: 'Easy' | 'Medium' | 'Hard';
   points: number;
   testCases: TestCase[];
@@ -24,7 +29,7 @@ interface Question {
 
 export default function CreateContestPage() {
   const [questions, setQuestions] = useState<Question[]>([
-    { id: 'q1', title: 'Two Sum', description: 'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.', difficulty: 'Easy', points: 200, testCases: [{ id: 'tc1', input: '[2,7,11,15]\n9', output: '[0,1]', isHidden: false }], expanded: true },
+    { id: 'q1', title: 'Two Sum', description: 'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.', inputFormat: '', outputFormat: '', constraints: '', timeLimit: 2.0, hints: [], difficulty: 'Easy', points: 200, testCases: [{ id: 'tc1', input: '[2,7,11,15]\n9', output: '[0,1]', isHidden: false }], expanded: true },
   ]);
   const [step, setStep] = useState(1);
   const [title, setTitle] = useState('');
@@ -35,11 +40,61 @@ export default function CreateContestPage() {
   const [tags, setTags] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Import Modal State
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [dbQuestions, setDbQuestions] = useState<any[]>([]);
+  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const fetchDbQuestions = async () => {
+    setIsLoadingQuestions(true);
+    setShowImportModal(true);
+    try {
+      const res = await apiFetch('/api/questions?admin=true');
+      if (res.ok) {
+        const data = await res.json();
+        setDbQuestions(data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoadingQuestions(false);
+    }
+  };
+
+  const importQuestion = (dbQ: any) => {
+    setQuestions((prev) => [...prev, {
+      id: `q${Date.now()}_${Math.random()}`,
+      title: dbQ.title,
+      description: dbQ.problemStatement,
+      inputFormat: dbQ.inputFormat,
+      outputFormat: dbQ.outputFormat,
+      constraints: dbQ.constraints,
+      timeLimit: dbQ.timeLimit || 2.0,
+      hints: dbQ.hints || [],
+      difficulty: dbQ.difficulty === 'EASY' ? 'Easy' : dbQ.difficulty === 'HARD' ? 'Hard' : 'Medium',
+      points: dbQ.points || 100,
+      testCases: (dbQ.testCases || []).map((tc: any) => ({
+        id: `tc${Date.now()}_${Math.random()}`,
+        input: tc.input,
+        output: tc.expectedOutput,
+        isHidden: tc.isHidden
+      })),
+      expanded: true
+    }]);
+    setShowImportModal(false);
+  };
+
   const addQuestion = () => {
     setQuestions((prev) => [...prev, {
       id: `q${Date.now()}`,
       title: `Question ${prev.length + 1}`,
       description: '',
+      inputFormat: '',
+      outputFormat: '',
+      constraints: '',
+      timeLimit: 2.0,
+      hints: [],
       difficulty: 'Medium',
       points: 400,
       testCases: [{ id: `tc${Date.now()}`, input: '', output: '', isHidden: false }],
@@ -71,9 +126,19 @@ export default function CreateContestPage() {
           questions: questions.map(q => ({
             title: q.title,
             description: q.description,
+            inputFormat: q.inputFormat || '',
+            outputFormat: q.outputFormat || '',
+            constraints: q.constraints || '',
+            timeLimit: q.timeLimit || 2.0,
+            hints: q.hints || [],
             difficulty: q.difficulty.toUpperCase(),
             points: q.points,
-            testCases: q.testCases
+            testCases: q.testCases.map(tc => ({
+              input: tc.input,
+              expectedOutput: tc.output,
+              isHidden: tc.isHidden,
+              isSample: !tc.isHidden
+            }))
           }))
         }),
       });
@@ -186,10 +251,16 @@ export default function CreateContestPage() {
             <div className="bg-card-elevated border border-border rounded-xl p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-base font-semibold text-foreground">Questions ({questions.length})</h2>
-                <button onClick={addQuestion} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-sky-300 text-xs font-medium hover:bg-primary/20 transition-colors">
-                  <Plus size={12} />
-                  Add Question
-                </button>
+                <div className="flex items-center gap-2">
+                  <button onClick={fetchDbQuestions} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium hover:bg-emerald-500/20 transition-colors">
+                    <Download size={12} />
+                    Import Question
+                  </button>
+                  <button onClick={addQuestion} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-sky-300 text-xs font-medium hover:bg-primary/20 transition-colors">
+                    <Plus size={12} />
+                    Add Question
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -243,6 +314,62 @@ export default function CreateContestPage() {
                             className="input-field w-full px-3 py-2.5 text-sm resize-none"
                             placeholder="Describe the problem clearly..."
                           />
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Input Format</label>
+                            <textarea
+                              rows={2}
+                              value={q.inputFormat}
+                              onChange={(e) => setQuestions((prev) => prev.map((p) => p.id === q.id ? { ...p, inputFormat: e.target.value } : p))}
+                              className="input-field w-full px-3 py-2 text-sm resize-none"
+                              placeholder="e.g. First line contains N..."
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Output Format</label>
+                            <textarea
+                              rows={2}
+                              value={q.outputFormat}
+                              onChange={(e) => setQuestions((prev) => prev.map((p) => p.id === q.id ? { ...p, outputFormat: e.target.value } : p))}
+                              className="input-field w-full px-3 py-2 text-sm resize-none"
+                              placeholder="e.g. Print a single integer..."
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Constraints</label>
+                            <textarea
+                              rows={2}
+                              value={q.constraints}
+                              onChange={(e) => setQuestions((prev) => prev.map((p) => p.id === q.id ? { ...p, constraints: e.target.value } : p))}
+                              className="input-field w-full px-3 py-2 text-sm resize-none"
+                              placeholder="e.g. 1 <= N <= 10^5"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Time Limit (seconds)</label>
+                            <input
+                              type="number"
+                              step="0.5"
+                              value={q.timeLimit}
+                              onChange={(e) => setQuestions((prev) => prev.map((p) => p.id === q.id ? { ...p, timeLimit: parseFloat(e.target.value) } : p))}
+                              className="input-field w-full px-3 py-2 text-sm"
+                            />
+                            <div className="mt-3">
+                              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Hints (Comma separated)</label>
+                              <input
+                                type="text"
+                                value={(q.hints || []).join(', ')}
+                                onChange={(e) => setQuestions((prev) => prev.map((p) => p.id === q.id ? { ...p, hints: e.target.value.split(',').map(h=>h.trim()).filter(Boolean) } : p))}
+                                className="input-field w-full px-3 py-2 text-sm"
+                                placeholder="Hint 1, Hint 2"
+                              />
+                            </div>
+                          </div>
                         </div>
                         
                         <div className="space-y-3">
@@ -347,6 +474,62 @@ export default function CreateContestPage() {
           </div>
         )}
       </div>
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+          <div className="bg-card-elevated border border-border w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <h2 className="text-lg font-bold text-foreground">Import Question</h2>
+              <button onClick={() => setShowImportModal(false)} className="text-muted-foreground hover:text-foreground">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 border-b border-border bg-background/30">
+              <input
+                type="text"
+                placeholder="Search questions by title..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="input-field w-full px-4 py-2.5 text-sm"
+              />
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {isLoadingQuestions ? (
+                <div className="flex items-center justify-center h-32">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+                </div>
+              ) : (
+                dbQuestions
+                  .filter(q => q.title.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map(q => (
+                    <div key={q.id} className="flex items-center justify-between p-4 rounded-xl border border-border bg-background/50 hover:border-primary/50 transition-colors">
+                      <div>
+                        <h3 className="font-semibold text-foreground text-sm">{q.title}</h3>
+                        <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                          <span className={q.difficulty === 'EASY' ? 'text-emerald-400' : q.difficulty === 'HARD' ? 'text-rose-400' : 'text-amber-400'}>
+                            {q.difficulty}
+                          </span>
+                          <span>•</span>
+                          <span>{q.points} pts</span>
+                          <span>•</span>
+                          <span>{q.testCases?.length || 0} Test Cases</span>
+                        </div>
+                      </div>
+                      <button onClick={() => importQuestion(q)} className="btn-secondary px-4 py-2 rounded-lg text-xs font-semibold hover:bg-primary hover:text-white hover:border-primary transition-colors">
+                        Import
+                      </button>
+                    </div>
+                  ))
+              )}
+              {!isLoadingQuestions && dbQuestions.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground text-sm">
+                  No existing questions found in the Question Builder.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

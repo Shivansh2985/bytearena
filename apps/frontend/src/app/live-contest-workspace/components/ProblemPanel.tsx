@@ -99,11 +99,26 @@ export default function ProblemPanel({
               <Badge variant={problem.difficulty.toLowerCase() as 'easy' | 'medium' | 'hard'}>
                 {problem.difficulty}
               </Badge>
-              <span className="text-xs bg-primary/10 text-purple-300 border border-primary/20 rounded-full px-2.5 py-0.5 font-medium">
+              <span className="text-xs bg-primary/10 text-purple-300 border border-primary/20 rounded-full px-2.5 py-0.5 font-medium flex items-center gap-1.5">
                 {problem.points} pts
               </span>
-              <span className="text-xs text-muted-foreground">⏱ {problem.timeLimit}</span>
-              <span className="text-xs text-muted-foreground">💾 {problem.memoryLimit}</span>
+              {(problem.timeLimit || problem.memoryLimit) && (
+                <div className="flex items-center gap-2 bg-muted/20 border border-border/50 rounded-full px-2.5 py-0.5">
+                  {problem.timeLimit && (
+                    <span className="text-[11px] font-medium text-amber-300 flex items-center gap-1">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                      {problem.timeLimit}s
+                    </span>
+                  )}
+                  {problem.timeLimit && problem.memoryLimit && <span className="text-muted-foreground/30 text-[10px]">|</span>}
+                  {problem.memoryLimit && (
+                    <span className="text-[11px] font-medium text-sky-300 flex items-center gap-1">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                      {problem.memoryLimit}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Tags */}
@@ -121,6 +136,24 @@ export default function ProblemPanel({
                 {problem.statement.replace(/\*\*(.*?)\*\*/g, '$1')}
               </div>
             </div>
+
+            {/* Input / Output Formats */}
+            {(problem.inputFormat || problem.outputFormat) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {problem.inputFormat && (
+                  <div className="bg-muted/10 border border-border/50 rounded-lg p-3">
+                    <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1.5"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg> Input Format</h3>
+                    <div className="text-[13px] text-foreground/80 leading-relaxed font-mono whitespace-pre-wrap">{problem.inputFormat}</div>
+                  </div>
+                )}
+                {problem.outputFormat && (
+                  <div className="bg-muted/10 border border-border/50 rounded-lg p-3">
+                    <h3 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1.5"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-sky-400"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="12" x2="12" y2="18"/><polyline points="9 15 12 12 15 15"/></svg> Output Format</h3>
+                    <div className="text-[13px] text-foreground/80 leading-relaxed font-mono whitespace-pre-wrap">{problem.outputFormat}</div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Constraints */}
             <div>

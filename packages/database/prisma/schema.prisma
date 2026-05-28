@@ -157,6 +157,7 @@ model Question {
   tags             String[]   @default([])
   hints            String[]   @default([])
   timeLimit        Float      @default(2.0)
+  memoryLimit      Float      @default(256.0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -1,10 +1,11 @@
+import '../styles/tailwind.css';
 import React from 'react';
 import type { Metadata, Viewport } from 'next';
 import { SessionProvider } from 'next-auth/react';
 import ReactQueryProvider from '@/providers/ReactQueryProvider';
 import { Geist } from 'next/font/google';
 import { ThemeProvider } from '@/components/ThemeProvider';
-import '../styles/tailwind.css';
+
 
 const geist = Geist({
   subsets: ['latin'],

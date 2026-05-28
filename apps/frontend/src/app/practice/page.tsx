@@ -36,11 +36,11 @@ export default function PracticePage() {
     async function fetchData() {
       try {
         const [qRes, sRes] = await Promise.all([
-          apiFetch('/api/questions?contestId=none'),
-          user ? apiFetch('/api/submissions') : Promise.resolve([])
+          apiFetch('/api/questions?contestId=none').then(r => r.json()),
+          user ? apiFetch('/api/submissions').then(r => r.json()) : Promise.resolve([])
         ]);
-        setQuestions(qRes);
-        setSubmissions(sRes);
+        setQuestions(Array.isArray(qRes) ? qRes : (qRes.data || []));
+        setSubmissions(Array.isArray(sRes) ? sRes : (sRes.data || []));
       } catch (e) {
         console.error('Error fetching practice data:', e);
       }

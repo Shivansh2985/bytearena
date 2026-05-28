@@ -2,11 +2,14 @@ import { Router, Response } from 'express';
 import { prisma } from '@bytearena/database';
 import { requireAuth, AuthRequest, requireAdmin } from '../middleware/auth';
 
+import { optionalAuth } from '../middleware/auth';
+
 const router = Router();
 
-router.get('/', async (req: AuthRequest, res: Response) => {
+router.get('/', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const contestId = req.query.contestId as string;
+    const adminMode = req.query.admin === 'true' && req.user?.role === 'ADMIN';
 
     const whereClause: any = {};
     if (contestId === 'none') {
@@ -18,8 +21,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const questions = await prisma.question.findMany({
       where: whereClause,
       include: {
-        testCases: {
-          where: { isSample: true } // Only return sample test cases to frontend
+        testCases: adminMode ? true : {
+          where: { isSample: true } // Only return sample test cases to frontend unless admin
         }
       }
     });

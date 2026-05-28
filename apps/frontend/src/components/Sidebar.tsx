@@ -67,7 +67,7 @@ const userNavGroups: NavGroup[] = [
     items: [
       { icon: History, label: 'Submissions', href: '/submissions', badge: null },
       { icon: BarChart3, label: 'Analytics', href: '/analytics', badge: null },
-      { icon: BookOpen, label: 'Practice', href: '/contests', badge: null },
+      { icon: BookOpen, label: 'Practice', href: '/practice', badge: null },
     ],
   },
   {

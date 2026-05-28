@@ -55,8 +55,9 @@ export default function AdminQuestionsPage() {
 
   const fetchQuestions = async () => {
     try {
-      const data = await apiFetch('/api/questions');
-      setQuestions(data);
+      const res = await apiFetch('/api/questions');
+      const data = await res.json();
+      setQuestions(Array.isArray(data) ? data : (data.data || []));
     } catch (err) {
       console.error(err);
     } finally {

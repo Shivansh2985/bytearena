@@ -114,8 +114,8 @@ function SingleParticipantVideo({ identity, contestId }: { identity: string, con
   
   return (
     <div ref={containerRef} className="w-full h-full relative group">
-      <VideoTrack participant={participant} source={Track.Source.Camera} className="w-full h-full object-cover" />
-      {participant.isMicrophoneEnabled && !isMuted && <AudioTrack participant={participant} source={Track.Source.Microphone} />}
+      <VideoTrack trackRef={{ participant, source: Track.Source.Camera, publication: participant.getTrackPublication(Track.Source.Camera) as any }} className="w-full h-full object-cover" />
+      {participant.isMicrophoneEnabled && !isMuted && <AudioTrack trackRef={{ participant, source: Track.Source.Microphone, publication: participant.getTrackPublication(Track.Source.Microphone) as any }} />}
       
       <div className="absolute bottom-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-50">
         <button onClick={() => setIsMuted(!isMuted)} className="p-2 bg-black/50 hover:bg-black/80 rounded text-white backdrop-blur">
