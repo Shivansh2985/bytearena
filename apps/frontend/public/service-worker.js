@@ -1,42 +1,33 @@
-self.addEventListener('push', function(event) {
-  let data = {};
+self.addEventListener('push', function (event) {
   if (event.data) {
-    try {
-      data = event.data.json();
-    } catch (e) {
-      data = { title: 'New Notification', body: event.data.text() };
-    }
+    const data = event.data.json();
+    const options = {
+      body: data.body,
+      icon: data.icon || '/icon-192x192.png',
+      badge: '/badge-72x72.png',
+      vibrate: [100, 50, 100],
+      data: {
+        dateOfArrival: Date.now(),
+        primaryKey: '2'
+      }
+    };
+    event.waitUntil(
+      self.registration.showNotification(data.title, options)
+    );
   }
-
-  const title = data.title || 'ByteArena Notification';
-  const options = {
-    body: data.body || 'You have a new message.',
-    icon: data.icon || '/icon-192x192.png',
-    badge: '/badge-72x72.png',
-    data: data.url || '/'
-  };
-
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  );
 });
 
-self.addEventListener('notificationclick', function(event) {
+self.addEventListener('notificationclick', function (event) {
   event.notification.close();
   event.waitUntil(
-    clients.matchAll({ type: 'window' }).then(windowClients => {
-      // Check if there is already a window/tab open with the target URL
-      for (var i = 0; i < windowClients.length; i++) {
-        var client = windowClients[i];
-        // If so, just focus it.
-        if (client.url === event.notification.data && 'focus' in client) {
+    clients.matchAll({ type: 'window' }).then(function (clientList) {
+      for (let i = 0; i < clientList.length; i++) {
+        const client = clientList[i];
+        if (client.url === '/' && 'focus' in client)
           return client.focus();
-        }
       }
-      // If not, then open the target URL in a new window/tab.
-      if (clients.openWindow) {
-        return clients.openWindow(event.notification.data);
-      }
+      if (clients.openWindow)
+        return clients.openWindow('/');
     })
   );
 });

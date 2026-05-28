@@ -7,6 +7,7 @@ import CodeEditorPanel from './CodeEditorPanel';
 import OutputPanel from './OutputPanel';
 import ProctoringOverlay from './ProctoringOverlay';
 import ToastProvider from '@/components/ui/Toast';
+import confetti from 'canvas-confetti';
 import { Track, RoomEvent, Room } from 'livekit-client';
 import { useSession } from 'next-auth/react';
 import { useSocket } from '@/providers/SocketProvider';
@@ -1134,6 +1135,19 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
           setRunResult(result);
           if (result.status === 'accepted') {
             setProblemStatuses((prev) => ({ ...prev, [prob.id]: 'answered' }));
+            
+            // Celebration 🎉
+            confetti({
+              particleCount: 200,
+              spread: 100,
+              origin: { y: 0.6 },
+              colors: ['#0EA5E9', '#38BDF8', '#10B981', '#34D399', '#F59E0B']
+            });
+
+            // Applause sound
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2018/2018-preview.mp3');
+            audio.volume = 0.5;
+            audio.play().catch(e => console.log('Audio playback prevented by browser:', e));
             
             apiFetch(`/api/contests/${contestId}`)
               .then(res => res.json())
