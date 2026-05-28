@@ -317,15 +317,9 @@ export const judgeWorker = new Worker(
     let finalError = '';
     const testcaseResults: any[] = [];
 
-    // Parallelize execution for speed
-    const executionPromises = testCasesToRun.map(tc =>
-      executeCode(code, language, tc.input, { waitForResult: true })
-        .then(result => ({ tc, result }))
-    );
-
-    const results = await Promise.all(executionPromises);
-
-    for (const { tc, result } of results) {
+    for (const tc of testCasesToRun) {
+      const result = await executeCode(code, language, tc.input, { waitForResult: true });
+      
       if (result.status === 'compilation_error') {
         finalStatus = 'compile_error';
         finalError = result.error || 'Compilation failed';

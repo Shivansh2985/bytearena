@@ -1,6 +1,6 @@
 'use client';
 import React, { useState } from 'react';
-import { X, CheckCircle2, XCircle, Clock, Cpu, Terminal, Play } from 'lucide-react';
+import { X, CheckCircle2, XCircle, Clock, Cpu, Terminal, Play, AlertTriangle } from 'lucide-react';
 import type { RunResult, Problem } from './WorkspaceShell';
 import Icon from '@/components/ui/AppIcon';
 
@@ -14,6 +14,36 @@ interface OutputPanelProps {
 
 type OutputTab = 'testcase' | 'result' | 'custom';
 
+function parseErrorString(errString: string, status: string) {
+  if (status === 'tle') return { title: 'Time Limit Exceeded (Infinite Loop)', description: 'Your code took too long to execute. This is usually caused by an infinite loop (e.g. while(true)) or an inefficient algorithm (e.g. O(N^2) instead of O(N)).' };
+  
+  const lowerErr = errString.toLowerCase();
+  
+  if (status === 'compile_error') {
+      if (lowerErr.includes('error: expected') || lowerErr.includes('syntaxerror') || lowerErr.includes('missing')) 
+          return { title: 'Syntax Error (Missing Characters)', description: 'You have a missing character (like a bracket, brace, comma, or semicolon) or invalid syntax in your code.' };
+      if (lowerErr.includes('was not declared') || lowerErr.includes('not defined') || lowerErr.includes('cannot resolve symbol')) 
+          return { title: 'Undeclared Variable or Missing Library', description: "You are using a variable or function that hasn't been declared. Did you misspell it or forget to import a library (e.g., #include <vector>)?" };
+      if (lowerErr.includes('no matching function') || lowerErr.includes('typeerror')) 
+          return { title: 'Type Mismatch / Invalid Function Call', description: 'You are passing the wrong types of arguments to a function, or attempting an invalid operation on a data type.' };
+      return { title: 'Compilation Error', description: 'Your code failed to compile. Check the raw error log below for details.' };
+  }
+  
+  if (status === 'runtime_error') {
+      if (lowerErr.includes('out of bounds') || lowerErr.includes('out_of_range') || lowerErr.includes('indexerror') || lowerErr.includes('arrayindexoutofbounds')) 
+          return { title: 'Index Out of Bounds', description: 'Your code tried to access an array or vector index that does not exist.' };
+      if (lowerErr.includes('segmentation fault') || lowerErr.includes('sigsegv')) 
+          return { title: 'Segmentation Fault (SIGSEGV)', description: 'Your code crashed due to invalid memory access. This often happens with out-of-bounds array access, infinite recursion, or null pointer dereferencing.' };
+      if (lowerErr.includes('memoryerror') || lowerErr.includes('heap out of memory') || lowerErr.includes('std::bad_alloc')) 
+          return { title: 'Memory Limit Exceeded', description: 'Your code used too much memory. Check for infinite recursion or massive array allocations.' };
+      if (lowerErr.includes('division by zero') || lowerErr.includes('arithmeticexception')) 
+          return { title: 'Division by Zero', description: 'Your code attempted to divide a number by zero.' };
+      return { title: 'Runtime Error', description: 'Your code crashed during execution. Check the raw error log below.' };
+  }
+  
+  return { title: 'Error', description: 'An unexpected error occurred.' };
+}
+
 export default function OutputPanel({ result, onClose, problem, onRunCustom }: OutputPanelProps) {
   const [activeTab, setActiveTab] = useState<OutputTab>('result');
   const [customInput, setCustomInput] = useState(problem.examples[0]?.input ?? '');
@@ -21,6 +51,14 @@ export default function OutputPanel({ result, onClose, problem, onRunCustom }: O
   React.useEffect(() => {
     setCustomInput(problem.examples[0]?.input ?? '');
   }, [problem]);
+
+  React.useEffect(() => {
+    if (result && !result.error && result.status !== 'compile_error' && result.status !== 'runtime_error' && result.status !== 'tle') {
+      setActiveTab('testcase');
+    } else {
+      setActiveTab('result');
+    }
+  }, [result]);
 
   const statusConfig = {
     running: { label: 'Running...', color: 'text-amber-300', bg: 'bg-amber-500/10', border: 'border-amber-500/20', icon: null },
@@ -134,7 +172,20 @@ export default function OutputPanel({ result, onClose, problem, onRunCustom }: O
 
             {result.error && (
               <div>
-                <p className="text-xs text-muted-foreground mb-1 font-medium">Error:</p>
+                <p className="text-xs text-muted-foreground mb-2 font-medium">Error Details:</p>
+                
+                {(() => {
+                   const parsed = parseErrorString(result.error, result.status || '');
+                   return (
+                     <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-3">
+                       <h4 className="text-red-300 text-sm font-bold flex items-center gap-2 mb-1">
+                         <AlertTriangle size={14} /> {parsed.title}
+                       </h4>
+                       <p className="text-red-300/80 text-xs leading-relaxed">{parsed.description}</p>
+                     </div>
+                   );
+                })()}
+
                 <pre className="code-panel p-3 text-xs text-red-300 overflow-x-auto rounded-lg whitespace-pre-wrap">
                   {result.error}
                 </pre>

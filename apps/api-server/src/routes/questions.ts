@@ -9,7 +9,11 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const contestId = req.query.contestId as string;
 
     const whereClause: any = {};
-    if (contestId) whereClause.contestId = contestId;
+    if (contestId === 'none') {
+      whereClause.contestId = null;
+    } else if (contestId) {
+      whereClause.contestId = contestId;
+    }
 
     const questions = await prisma.question.findMany({
       where: whereClause,
@@ -41,6 +45,8 @@ router.post('/', requireAdmin, async (req: AuthRequest, res: Response) => {
         difficulty: data.difficulty,
         points: data.points,
         contestId: data.contestId,
+        timeLimit: data.timeLimit ?? 2.0,
+        hints: data.hints ?? [],
         testCases: {
           create: data.testCases?.map((tc: any) => ({
             input: tc.input,
@@ -76,12 +82,27 @@ router.put('/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
         outputFormat: data.outputFormat,
         difficulty: data.difficulty,
         points: data.points,
+        timeLimit: data.timeLimit ?? 2.0,
+        hints: data.hints ?? []
       }
     });
 
     return res.json({ success: true, question });
   } catch (error) {
     console.error('Error updating question:', error);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+router.delete('/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    await prisma.question.delete({
+      where: { id }
+    });
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting question:', error);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 });

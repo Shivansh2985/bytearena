@@ -51,7 +51,7 @@ export const getRedisClient = (): IORedis => {
 export const getBullMQClient = (): IORedis => {
   if (!globalThis.__redisBullMQClient) {
     logger.info('redis_init', { type: 'bullmq_client' }, 'Initializing BullMQ Client');
-    globalThis.__redisBullMQClient = new IORedis(REDIS_URL, defaultRedisOptions);
+    globalThis.__redisBullMQClient = new IORedis(WORKER_REDIS_URL, defaultRedisOptions);
     
     globalThis.__redisBullMQClient.on('error', (err) => {
       logger.error('redis_error', { error: err.message, type: 'bullmq_client' }, 'BullMQ Client error');
@@ -64,7 +64,7 @@ export const getBullMQClient = (): IORedis => {
 export const getBullMQSubscriber = (): IORedis => {
   if (!globalThis.__redisBullMQSubscriber) {
     logger.info('redis_init', { type: 'bullmq_subscriber' }, 'Initializing BullMQ Subscriber');
-    globalThis.__redisBullMQSubscriber = new IORedis(REDIS_URL, defaultRedisOptions);
+    globalThis.__redisBullMQSubscriber = new IORedis(WORKER_REDIS_URL, defaultRedisOptions);
     
     globalThis.__redisBullMQSubscriber.on('error', (err) => {
       logger.error('redis_error', { error: err.message, type: 'bullmq_subscriber' }, 'BullMQ Subscriber error');

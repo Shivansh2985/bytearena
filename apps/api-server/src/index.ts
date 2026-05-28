@@ -330,6 +330,14 @@ const shutdown = async (signal: string) => {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
+process.on('uncaughtException', (err) => {
+  logger.error('uncaught_exception', { error: err.message, stack: err.stack }, '🚨 Uncaught Exception occurred! Preventing server crash...');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('unhandled_rejection', { reason }, '🚨 Unhandled Promise Rejection! Preventing server crash...');
+});
+
 // ─────────────────────────────────────────────────────────────
 // Exports
 // ─────────────────────────────────────────────────────────────

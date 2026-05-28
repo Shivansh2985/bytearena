@@ -29,8 +29,11 @@ export interface Problem {
   memoryLimit: string;
   tags: string[];
   statement: string;
-  constraints: string[];
-  examples: Array<{ input: string; output: string; explanation?: string }>;
+  inputFormat?: string;
+  outputFormat?: string;
+  constraints: string[] | string;
+  hints?: string[];
+  examples: Array<{ input: string; output: string; expectedOutput?: string; explanation?: string }>;
 }
 
 export type Language = 'cpp' | 'python' | 'java' | 'javascript';
