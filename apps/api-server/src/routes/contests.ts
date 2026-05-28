@@ -1,6 +1,7 @@
-import { Router, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { prisma } from '@bytearena/database';
 import { requireAuth, AuthRequest, requireAdmin, optionalAuth } from '../middleware/auth';
+import { sendNotification } from '../services/notifications';
 
 const router = Router();
 
@@ -12,34 +13,54 @@ router.get('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     // Parse query params
     const status = req.query.status as string;
     const difficulty = req.query.difficulty as string;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const skip = (page - 1) * limit;
     
     const whereClause: any = {};
     if (difficulty) whereClause.difficulty = difficulty;
 
-    const contests = await prisma.contest.findMany({
-      where: whereClause,
-      orderBy: { startTime: 'asc' },
-      include: {
-        _count: {
-          select: { participants: true, questions: true },
-        },
-        ...(userId ? {
-          registrations: { where: { userId: userId } },
-          participants: { where: { userId: userId } }
-        } : {})
+    const now = new Date();
+    if (status) {
+      if (status.toLowerCase() === 'live') {
+        whereClause.startTime = { lte: now };
+        whereClause.endTime = { gt: now };
+      } else if (status.toLowerCase() === 'upcoming') {
+        whereClause.startTime = { gt: now };
+      } else if (status.toLowerCase() === 'completed') {
+        whereClause.endTime = { lte: now };
       }
-    });
+    }
+
+    const [contests, total] = await Promise.all([
+      prisma.contest.findMany({
+        where: whereClause,
+        orderBy: { startTime: 'asc' },
+        skip,
+        take: limit,
+        include: {
+          _count: {
+            select: { participants: true, questions: true },
+          },
+          ...(userId ? {
+            registrations: { where: { userId: userId } },
+            participants: { where: { userId: userId } }
+          } : {})
+        }
+      }),
+      prisma.contest.count({ where: whereClause })
+    ]);
 
     // Format for frontend
-    const now = Date.now();
     const formattedContests = contests.map((c: any) => {
       const startTime = new Date(c.startTime).getTime();
       const endTime = new Date(c.endTime).getTime();
+      const nowMs = Date.now();
       
       let computedStatus = 'upcoming';
-      if (now >= startTime && now < endTime) {
+      if (nowMs >= startTime && nowMs < endTime) {
         computedStatus = 'live';
-      } else if (now >= endTime) {
+      } else if (nowMs >= endTime) {
         computedStatus = 'completed';
       }
 
@@ -60,26 +81,21 @@ router.get('/', optionalAuth, async (req: AuthRequest, res: Response) => {
       };
     });
 
-    let filteredContests = formattedContests;
-    if (status) {
-      filteredContests = formattedContests.filter((c: any) => c.status.toLowerCase() === status.toLowerCase());
-    }
-
     // Sort: Live (desc), Upcoming (asc), Completed (desc)
-    filteredContests.sort((a: any, b: any) => {
+    formattedContests.sort((a: any, b: any) => {
       const statusOrder: Record<string, number> = { live: 1, upcoming: 2, completed: 3 };
       if (statusOrder[a.status] !== statusOrder[b.status]) {
         return statusOrder[a.status] - statusOrder[b.status];
       }
-      // If both upcoming, sort by nearest first (asc)
       if (a.status === 'upcoming') {
         return a.startTime - b.startTime;
       }
-      // If both live or completed, sort by most recent first (desc)
       return b.startTime - a.startTime;
     });
 
-    return res.json(filteredContests);
+    // If paginated param is explicitly passed or simply by default, we return paginated object
+    // To not break existing apps, we can just return { data, total, page, totalPages }
+    return res.json({ data: formattedContests, total, page, totalPages: Math.ceil(total / limit) });
   } catch (error) {
     console.error('Error fetching contests:', error);
     return res.status(500).json({ error: 'Internal Server Error' });
@@ -255,21 +271,69 @@ router.post('/:id/register', requireAuth, async (req: AuthRequest, res: Response
 
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    // Check if already registered
-    const existing = await prisma.contestRegistration.findFirst({
-      where: { userId, contestId: id }
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Validate contest exists and is not completed
+      const contest = await tx.contest.findUnique({
+        where: { id }
+      });
+
+      if (!contest) {
+        throw new Error('CONTEST_NOT_FOUND');
+      }
+
+      if (Date.now() > new Date(contest.endTime).getTime()) {
+        throw new Error('CONTEST_ENDED');
+      }
+
+      // 2. Prevent duplicate registrations safely
+      const existing = await tx.contestRegistration.findFirst({
+        where: { userId, contestId: id }
+      });
+
+      if (existing) {
+        throw new Error('ALREADY_REGISTERED');
+      }
+
+      // 3. Perform registration
+      const registration = await tx.contestRegistration.create({
+        data: { userId, contestId: id }
+      });
+
+      // 4. Grant badge for first contest registration
+      let newlyAwardedBadge = false;
+      const regCount = await tx.contestRegistration.count({ where: { userId } });
+      if (regCount === 1) { // includes the one we just created
+        const hasBadge = await tx.badge.findFirst({ where: { userId, name: 'First Blood' } });
+        if (!hasBadge) {
+          await tx.badge.create({
+            data: {
+              userId,
+              name: 'First Blood',
+              description: 'Registered for your first contest!',
+              imageUrl: '⚔️'
+            }
+          });
+          newlyAwardedBadge = true;
+        }
+      }
+
+      return { registration, newlyAwardedBadge, contestTitle: contest.title };
     });
 
-    if (existing) {
-      return res.status(400).json({ error: 'Already registered' });
+    if (result.newlyAwardedBadge) {
+      // Send a push notification for the badge!
+      await sendNotification(userId, 'Badge Earned! 🏆', 'You earned the "First Blood" badge for registering for your first contest.');
     }
 
-    const registration = await prisma.contestRegistration.create({
-      data: { userId, contestId: id }
-    });
+    // Send a push notification for the contest registration
+    await sendNotification(userId, 'Registration Confirmed', `You have successfully registered for ${result.contestTitle}.`);
 
-    return res.status(201).json({ success: true, registration });
-  } catch (error) {
+    return res.status(201).json({ success: true, registration: result.registration });
+  } catch (error: any) {
+    if (error.message === 'CONTEST_NOT_FOUND') return res.status(404).json({ error: 'Contest not found' });
+    if (error.message === 'CONTEST_ENDED') return res.status(400).json({ error: 'Cannot register for a completed contest' });
+    if (error.message === 'ALREADY_REGISTERED') return res.status(400).json({ error: 'Already registered' });
+    
     console.error('Error registering for contest:', error);
     return res.status(500).json({ error: 'Internal Server Error' });
   }

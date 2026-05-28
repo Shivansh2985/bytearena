@@ -32,13 +32,16 @@ export default function AdminUsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   React.useEffect(() => {
-    apiFetch('/api/admin?action=users')
+    setLoading(true);
+    apiFetch(`/api/admin?action=users&page=${currentPage}&limit=50`)
       .then(res => res.json())
-      .then(data => {
-        if (!data.error && Array.isArray(data)) {
-          const mapped = data.map((u: any, index: number) => {
+      .then(resData => {
+        if (!resData.error && Array.isArray(resData.data)) {
+          const mapped = resData.data.map((u: any, index: number) => {
             const displayName = u.name || (u.firstName ? `${u.firstName} ${u.lastName || ''}` : '') || 'Unknown';
             const initials = displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'US';
             const rating = u.rating ?? 1200;
@@ -64,6 +67,7 @@ export default function AdminUsersPage() {
             };
           });
           setUsers(mapped);
+          setTotalPages(resData.totalPages || 1);
         }
         setLoading(false);
       })
@@ -71,7 +75,7 @@ export default function AdminUsersPage() {
         console.error('Failed to fetch admin users', err);
         setLoading(false);
       });
-  }, []);
+  }, [currentPage]);
 
   const handleDeleteUser = async (userId: string) => {
     if (!confirm('Are you sure you want to permanently delete this user? This action cannot be undone.')) {
@@ -227,6 +231,29 @@ export default function AdminUsersPage() {
                 );
               })}
             </div>
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="px-5 py-4 flex items-center justify-between border-t border-border bg-muted/5">
+                <button 
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:bg-muted/30 transition-colors"
+                >
+                  Previous
+                </button>
+                <span className="text-xs font-medium text-muted-foreground">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button 
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:bg-muted/30 transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
 
           {/* User detail panel */}

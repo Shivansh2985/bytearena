@@ -52,17 +52,29 @@ export default function AdminDashboardPage() {
     { label: 'Avg Rating', value: '-', icon: TrendingUp, change: 'Loading...', color: 'amber' },
   ];
 
-  // Using empty data states until actual time-series analytics are implemented on the backend
-  const submissionFlow = [
+  // Map real data from stats if available
+  const submissionFlow = stats?.dailySubmissions?.map((d: any) => ({
+    time: d.day,
+    count: d.count
+  })) || [
     { time: 'Start', count: 0 },
     { time: 'Now', count: stats?.submissionsCount || 0 }
   ];
 
-  const contestActivity = [
+  const contestActivity = stats?.contestParticipation?.map((c: any) => ({
+    name: c.contest,
+    participants: c.participants,
+    submissions: 0 // Optional: if we tracked submissions per contest we could show it here
+  })) || [
     { name: 'Contest', participants: 0, submissions: 0 }
   ];
 
-  const recentAlerts: any[] = []; // No hardcoded alerts
+  const recentAlerts = stats?.recentAlerts?.map((a: any) => ({
+    id: a.id,
+    type: a.type,
+    message: a.message,
+    time: new Date(a.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  })) || [];
 
   return (
     <AppLayout currentPath="/admin/dashboard" role="admin">

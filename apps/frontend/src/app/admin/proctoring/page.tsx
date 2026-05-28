@@ -268,7 +268,8 @@ function AdminProctoringContent() {
       try {
         const res = await apiFetch('/api/contests?status=live');
         const data = await res.json();
-        if (Array.isArray(data)) setLiveContests(data);
+        const actualData = Array.isArray(data) ? data : (data.data || []);
+        if (Array.isArray(actualData)) setLiveContests(actualData);
       } catch (err) {
         console.error('Failed to fetch live contests', err);
       }

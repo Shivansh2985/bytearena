@@ -39,11 +39,25 @@ export const optionalAuth = (req: AuthRequest, res: Response, next: NextFunction
   next();
 };
 
+import { prisma } from '@bytearena/database';
+
 export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction) => {
-  requireAuth(req, res, () => {
+  requireAuth(req, res, async () => {
     if (req.user?.role !== 'ADMIN') {
       return res.status(403).json({ error: 'Forbidden: Admins only' });
     }
-    next();
+    try {
+      // Securely fetch from DB to prevent token spoofing or privilege escalation
+      const dbUser = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { role: true }
+      });
+      if (!dbUser || dbUser.role !== 'ADMIN') {
+        return res.status(403).json({ error: 'Forbidden: Admins only' });
+      }
+      next();
+    } catch (err) {
+      return res.status(500).json({ error: 'Internal Server Error during auth check' });
+    }
   });
 };

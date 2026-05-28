@@ -804,12 +804,21 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       }
     };
 
+    const onAdminKick = (data: { contestId: string }) => {
+      if (data.contestId === contestId) {
+        alert('You have been removed from this contest by an Administrator.');
+        window.location.href = '/contests'; // hard redirect
+      }
+    };
+
     socket.on('admin:voice-started', onVoiceStarted);
     socket.on('admin:voice-stopped', onVoiceStopped);
+    socket.on('admin:kick', onAdminKick);
 
     return () => {
       socket.off('admin:voice-started', onVoiceStarted);
       socket.off('admin:voice-stopped', onVoiceStopped);
+      socket.off('admin:kick', onAdminKick);
       if (adminVoiceRoom) {
         adminVoiceRoom.disconnect();
         adminVoiceRoom = null;

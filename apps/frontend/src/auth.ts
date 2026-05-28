@@ -49,10 +49,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async signIn({ user, account, profile }) {
       if (user?.email === 'admin@bytearena.dev') {
         const dbUser = await prisma.user.findUnique({ where: { email: user.email } });
-        if (dbUser && dbUser.role !== 'ADMIN') {
+        if (dbUser && (dbUser.role !== 'ADMIN' || !dbUser.isSystemAdmin)) {
           await prisma.user.update({
             where: { email: user.email },
-            data: { role: 'ADMIN' }
+            data: { role: 'ADMIN', isSystemAdmin: true }
           });
         }
       }
@@ -61,20 +61,38 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role || 'USER';
+      }
+      // Securely fetch role from DB to prevent stale tokens or privilege escalation
+      if (token.id) {
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: { role: true, isSystemAdmin: true, status: true }
+          });
+          if (dbUser) {
+            token.role = dbUser.role;
+            token.isSystemAdmin = dbUser.isSystemAdmin;
+            token.status = dbUser.status;
+          }
+        } catch (error) {
+          console.error("Error fetching user in JWT callback", error);
+        }
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as string || 'USER';
+        session.user.role = (token.role as string) || 'USER';
+        (session.user as any).isSystemAdmin = !!token.isSystemAdmin;
+        (session.user as any).status = (token.status as string) || 'ACTIVE';
         
         // Generate a standard JWT for the external Express API server
         const secret = new TextEncoder().encode(process.env.AUTH_SECRET);
         session.accessToken = await new SignJWT({ 
           id: token.id, 
           role: token.role,
+          isSystemAdmin: token.isSystemAdmin,
           email: session.user.email 
         })
           .setProtectedHeader({ alg: 'HS256' })

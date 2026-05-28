@@ -40,8 +40,12 @@ export default function AdminAnalyticsPage() {
         ]);
 
         if (!statsRes.error) setStats(statsRes);
-        if (Array.isArray(usersRes)) setUsers(usersRes);
-        if (Array.isArray(contestsRes)) setContests(contestsRes);
+        
+        const actualUsers = Array.isArray(usersRes) ? usersRes : (usersRes.data || []);
+        if (Array.isArray(actualUsers)) setUsers(actualUsers);
+        
+        const actualContests = Array.isArray(contestsRes) ? contestsRes : (contestsRes.data || []);
+        if (Array.isArray(actualContests)) setContests(actualContests);
       } catch (err) {
         console.error('Failed to fetch analytics data', err);
       } finally {
@@ -51,50 +55,62 @@ export default function AdminAnalyticsPage() {
     fetchData();
   }, []);
 
-  const totalUsers = users.length;
-  const contestsCount = contests.length;
+  const totalUsers = stats?.usersCount ?? 0;
+  const contestsCount = stats?.liveContestsCount ?? contests.length;
   const submissionsCount = stats?.submissionsCount ?? 0;
-  const avgRating = totalUsers > 0 ? Math.round(users.reduce((sum, u) => sum + (u.rating ?? 1200), 0) / totalUsers) : 1200;
+  const avgRating = stats?.avgRating ?? 1200;
 
-  // Calculate actual tier distribution
-  const tiers = {
-    Grandmaster: 0,
-    Master: 0,
-    Expert: 0,
-    Specialist: 0,
-    Pupil: 0,
-    Beginner: 0,
-  };
-
-  users.forEach((u) => {
-    const rating = u.rating ?? 1200;
-    if (rating >= 2400) tiers.Grandmaster++;
-    else if (rating >= 2100) tiers.Master++;
-    else if (rating >= 1900) tiers.Expert++;
-    else if (rating >= 1600) tiers.Specialist++;
-    else if (rating >= 1400) tiers.Pupil++;
-    else tiers.Beginner++;
-  });
-
-  const tierDistribution = [
-    { name: 'Grandmaster', value: tiers.Grandmaster, color: '#EF4444' },
-    { name: 'Master', value: tiers.Master, color: '#F59E0B' },
-    { name: 'Expert', value: tiers.Expert, color: '#0EA5E9' },
-    { name: 'Specialist', value: tiers.Specialist, color: '#06B6D4' },
-    { name: 'Pupil', value: tiers.Pupil, color: '#10B981' },
-    { name: 'Beginner', value: tiers.Beginner, color: '#6B7A8A' },
-  ].filter(t => t.value > 0); // only show populated tiers
+  // Use API provided tier distribution if available, otherwise compute from local users
+  let tierDistribution = stats?.tierDistribution ?? [];
+  if (tierDistribution.length === 0) {
+    const tiers = {
+      Grandmaster: 0,
+      Master: 0,
+      Expert: 0,
+      Specialist: 0,
+      Pupil: 0,
+      Beginner: 0,
+    };
+    users.forEach((u) => {
+      const rating = u.rating ?? 1200;
+      if (rating >= 2400) tiers.Grandmaster++;
+      else if (rating >= 2100) tiers.Master++;
+      else if (rating >= 1900) tiers.Expert++;
+      else if (rating >= 1600) tiers.Specialist++;
+      else if (rating >= 1400) tiers.Pupil++;
+      else tiers.Beginner++;
+    });
+    tierDistribution = [
+      { name: 'Grandmaster', value: tiers.Grandmaster, color: '#EF4444' },
+      { name: 'Master', value: tiers.Master, color: '#F59E0B' },
+      { name: 'Expert', value: tiers.Expert, color: '#0EA5E9' },
+      { name: 'Specialist', value: tiers.Specialist, color: '#06B6D4' },
+      { name: 'Pupil', value: tiers.Pupil, color: '#10B981' },
+      { name: 'Beginner', value: tiers.Beginner, color: '#6B7A8A' },
+    ].filter(t => t.value > 0);
+  } else {
+    // map colors for API data
+    const colorMap: Record<string, string> = {
+      Grandmaster: '#EF4444',
+      Master: '#F59E0B',
+      Expert: '#0EA5E9',
+      Specialist: '#06B6D4',
+      Pupil: '#10B981',
+      Beginner: '#6B7A8A',
+    };
+    tierDistribution = tierDistribution.map((t: any) => ({ ...t, color: colorMap[t.name] || '#6B7A8A' }));
+  }
 
   const kpis = [
-    { label: 'Total Users', value: totalUsers.toString(), icon: Users, change: 'Active platform users', color: 'sky' },
-    { label: 'Contests Run', value: contestsCount.toString(), icon: Swords, change: 'All scheduled contests', color: 'amber' },
+    { label: 'Total Users', value: totalUsers.toLocaleString(), icon: Users, change: 'Active platform users', color: 'sky' },
+    { label: 'Live Contests', value: contestsCount.toString(), icon: Swords, change: 'Currently active contests', color: 'amber' },
     { label: 'Total Submissions', value: submissionsCount.toLocaleString(), icon: Activity, change: 'Across all tasks', color: 'emerald' },
     { label: 'Avg Rating', value: avgRating.toString(), icon: TrendingUp, change: 'Platform average', color: 'cyan' },
     { label: 'Avg Solve Time', value: '22 min', icon: Clock, change: 'System baseline', color: 'orange' },
     { label: 'Acceptance Rate', value: '61.2%', icon: BarChart2, change: 'Platform-wide', color: 'violet' },
   ];
 
-  const dailySubmissions = [
+  const dailySubmissions = stats?.dailySubmissions ?? [
     { day: 'Today', count: submissionsCount },
   ];
 
@@ -103,8 +119,8 @@ export default function AdminAnalyticsPage() {
     { month: 'Now', users: totalUsers },
   ];
 
-  const contestParticipation = contests.map((c) => ({
-    contest: c.title,
+  const contestParticipation = stats?.contestParticipation ?? contests.map((c) => ({
+    contest: c.title.substring(0, 15) + (c.title.length > 15 ? '...' : ''),
     participants: c.participants || 0,
   }));
 

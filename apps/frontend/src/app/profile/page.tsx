@@ -192,7 +192,7 @@ export default function ProfilePage() {
                 {user?.badges?.length > 0 ? (
                   user.badges.map((a: any, i: number) => (
                     <div key={i} className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/30 transition-colors">
-                      <span className="text-xl">{a.icon || '🏆'}</span>
+                      <span className="text-xl">{a.icon || a.imageUrl || '🏆'}</span>
                       <div>
                         <p className="text-sm font-medium text-foreground">{a.title || a.name}</p>
                         <p className="text-xs text-muted-foreground">{a.sub || a.description}</p>

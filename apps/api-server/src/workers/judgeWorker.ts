@@ -9,9 +9,10 @@ dotenv.config();
 // ─────────────────────────────────────────────────────────────
 // Redis Connection
 // ─────────────────────────────────────────────────────────────
-import { getBullMQClient } from '../lib/redis';
+import { getBullMQWorkerClient, getRedisClient } from '../lib/redis';
 
-const connection = getBullMQClient();
+const workerConnection = getBullMQWorkerClient();
+const standardRedis = getRedisClient();
 
 // ─────────────────────────────────────────────────────────────
 // Judge0 Configuration
@@ -430,6 +431,13 @@ export const judgeWorker = new Worker(
             },
           });
         }
+        
+        // ZINCRBY Live Redis Leaderboard
+        try {
+          await standardRedis.zincrby(`contest:${problem.contestId}:leaderboard`, problem.points, userId);
+        } catch (redisErr) {
+          logger.error('redis_leaderboard_error', { contestId: problem.contestId, userId }, 'Failed to update Redis leaderboard');
+        }
       }
     }
 
@@ -469,7 +477,7 @@ export const judgeWorker = new Worker(
     };
   },
   { 
-    connection: connection as any,
+    connection: workerConnection as any,
     drainDelay: 15,
     stalledInterval: 60000,
     lockDuration: 120000,

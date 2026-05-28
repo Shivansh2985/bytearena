@@ -23,13 +23,16 @@ export default function AdminContestsPage() {
   const [filter, setFilter] = useState<string>('all');
   const [contests, setContests] = useState<Contest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   React.useEffect(() => {
-    apiFetch('/api/contests')
+    setLoading(true);
+    apiFetch(`/api/contests?page=${currentPage}&limit=50${filter !== 'all' ? `&status=${filter}` : ''}`)
       .then(res => res.json())
-      .then(data => {
-        if (!data.error && Array.isArray(data)) {
-          const mapped = data.map((c: any) => {
+      .then(resData => {
+        if (!resData.error && Array.isArray(resData.data)) {
+          const mapped = resData.data.map((c: any) => {
             const start = new Date(c.startTime);
             const end = new Date(c.endTime);
             const durationMs = end.getTime() - start.getTime();
@@ -47,6 +50,7 @@ export default function AdminContestsPage() {
             };
           });
           setContests(mapped);
+          setTotalPages(resData.totalPages || 1);
         }
         setLoading(false);
       })
@@ -54,7 +58,7 @@ export default function AdminContestsPage() {
         console.error('Failed to fetch contests', err);
         setLoading(false);
       });
-  }, []);
+  }, [currentPage, filter]);
 
   const filtered = contests.filter((c) => {
     const matchSearch = c.title.toLowerCase().includes(search.toLowerCase());
@@ -184,6 +188,29 @@ export default function AdminContestsPage() {
               </div>
             ))}
           </div>
+          
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="px-5 py-4 flex items-center justify-between border-t border-border bg-muted/5">
+              <button 
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:bg-muted/30 transition-colors"
+              >
+                Previous
+              </button>
+              <span className="text-xs font-medium text-muted-foreground">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button 
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:bg-muted/30 transition-colors"
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </AppLayout>

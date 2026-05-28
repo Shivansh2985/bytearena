@@ -358,6 +358,28 @@ eventSub
     console.warn('⚠️ Redis event subscriber failed:', err.message);
   });
 
+eventSub.subscribe('user:notifications', (message) => {
+  try {
+    const data = JSON.parse(message);
+    if (data.userId && data.notification) {
+      io.to(`user:${data.userId}`).emit('notification', data.notification);
+    }
+  } catch (e) {
+    console.error('Failed to parse notification redis event', e);
+  }
+});
+
+eventSub.subscribe('user:kick', (message) => {
+  try {
+    const data = JSON.parse(message);
+    if (data.userId) {
+      io.to(`user:${data.userId}`).emit('admin:kick', { contestId: data.contestId });
+    }
+  } catch (e) {
+    console.error('Failed to parse kick redis event', e);
+  }
+});
+
 app.get('/health', (_req, res) => {
   res.status(200).json({
     status: 'ok',
@@ -370,6 +392,11 @@ app.get('/health', (_req, res) => {
 // Periodic heartbeat sweeper for stale connections (every 30 seconds)
 setInterval(async () => {
   try {
+    const lockKey = 'lock:presence-sweeper';
+    // Acquire distributed lock using SETNX with an expiry of 25 seconds
+    const locked = await pubClient.set(lockKey, 'locked', { NX: true, EX: 25 });
+    if (!locked) return; // Another node is already sweeping
+
     const now = Date.now();
     for await (const key of pubClient.scanIterator({ MATCH: 'presence:*', COUNT: 100 })) {
       const dataStr = await pubClient.get(key);

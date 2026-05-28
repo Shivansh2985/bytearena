@@ -58,7 +58,8 @@ export default function ContestsPage() {
         const res = await apiFetch('/api/contests');
         if (res.ok) {
           const data = await res.json();
-          setContests(data);
+          const actualData = Array.isArray(data) ? data : (data.data || []);
+          setContests(actualData);
         }
       } catch (err) {
         console.error('Failed to fetch contests', err);
@@ -75,6 +76,26 @@ export default function ContestsPage() {
       c.tags.some((t) => t.toLowerCase().includes(search.toLowerCase()));
     return matchStatus && matchSearch;
   });
+
+  const [isRegistering, setIsRegistering] = useState<string | null>(null);
+
+  const handleRegister = async (contestId: string) => {
+    try {
+      setIsRegistering(contestId);
+      const res = await apiFetch(`/api/contests/${contestId}/register`, { method: 'POST' });
+      if (res.ok) {
+        setContests(prev => prev.map(c => c.id === contestId ? { ...c, registered: true } : c));
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.error || 'Failed to register');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('An error occurred during registration');
+    } finally {
+      setIsRegistering(null);
+    }
+  };
 
   return (
     <AppLayout currentPath="/contests" role="student">
@@ -175,18 +196,32 @@ export default function ContestsPage() {
               </div>
 
               {c.status === 'live' ? (
-                <Link href={`/live-contest-workspace/${c.id}`}>
-                  <button className="btn-primary w-full py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5">
-                    {c.registered ? 'Continue Contest' : 'Join Now'}
+                c.registered ? (
+                  <Link href={`/live-contest-workspace/${c.id}`}>
+                    <button className="btn-primary w-full py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5">
+                      Continue Contest
+                      <ArrowRight size={12} />
+                    </button>
+                  </Link>
+                ) : (
+                  <button 
+                    onClick={() => handleRegister(c.id)}
+                    disabled={isRegistering === c.id}
+                    className="btn-primary w-full py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 disabled:opacity-70"
+                  >
+                    {isRegistering === c.id ? 'Registering...' : 'Join Now'}
                     <ArrowRight size={12} />
                   </button>
-                </Link>
+                )
               ) : c.status === 'upcoming' ? (
-                <button className={`w-full py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                <button 
+                  onClick={() => !c.registered && handleRegister(c.id)}
+                  disabled={c.registered || isRegistering === c.id}
+                  className={`w-full py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all disabled:opacity-70 ${
                   c.registered
-                    ? 'bg-sky-500/10 border border-sky-500/20 text-sky-300' :'btn-primary'
+                    ? 'bg-sky-500/10 border border-sky-500/20 text-sky-300 cursor-default' :'btn-primary'
                 }`}>
-                  {c.registered ? '✓ Registered' : 'Register Now'}
+                  {isRegistering === c.id ? 'Registering...' : (c.registered ? '✓ Registered' : 'Register Now')}
                 </button>
               ) : (
                 <Link href={`/live-contest-workspace/${c.id}`} className="block w-full">

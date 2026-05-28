@@ -253,6 +253,7 @@ import questionsRouter from './routes/questions';
 import submissionsRouter from './routes/submissions';
 import judgeRouter from './routes/judge';
 import proctoringRouter from './routes/proctoring';
+import notificationsRouter from './routes/notifications';
 import uploadsRouter from './routes/uploads';
 
 // ─────────────────────────────────────────────────────────────
@@ -271,6 +272,8 @@ app.use('/api/submissions', submissionsRouter);
 app.use('/api/judge', judgeRouter);
 
 app.use('/api/proctoring', proctoringRouter);
+
+app.use('/api/notifications', notificationsRouter);
 
 app.use('/api/uploads', uploadsRouter);
 

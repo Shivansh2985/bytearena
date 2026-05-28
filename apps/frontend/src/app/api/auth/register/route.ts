@@ -24,6 +24,7 @@ export async function POST(req: Request) {
     const lastName = lastNameParts.join(' ');
 
     const role = email === 'admin@bytearena.dev' ? 'ADMIN' : 'USER';
+    const isSystemAdmin = email === 'admin@bytearena.dev';
 
     const user = await prisma.user.create({
       data: {
@@ -33,6 +34,7 @@ export async function POST(req: Request) {
         firstName,
         lastName,
         role,
+        isSystemAdmin,
       },
     });
 

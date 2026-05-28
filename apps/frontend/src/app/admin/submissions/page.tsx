@@ -9,6 +9,8 @@ export default function AdminSubmissionsPage() {
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [contests, setContests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   
   // Dropdown filters
   const [filterContest, setFilterContest] = useState('all');
@@ -16,12 +18,14 @@ export default function AdminSubmissionsPage() {
   const [expandedSubmission, setExpandedSubmission] = useState<string | null>(null);
   
   useEffect(() => {
+    setLoading(true);
     // Fetch all submissions (global)
-    apiFetch('/api/submissions')
+    apiFetch(`/api/admin?action=submissions&page=${currentPage}&limit=50`)
       .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          setSubmissions(data);
+      .then(resData => {
+        if (!resData.error && Array.isArray(resData.data)) {
+          setSubmissions(resData.data);
+          setTotalPages(resData.totalPages || 1);
         }
       })
       .catch(console.error)
@@ -31,12 +35,13 @@ export default function AdminSubmissionsPage() {
     apiFetch('/api/contests')
       .then(res => res.json())
       .then(data => {
-        if (Array.isArray(data)) {
-          setContests(data);
+        const actualData = Array.isArray(data) ? data : (data.data || []);
+        if (Array.isArray(actualData)) {
+          setContests(actualData);
         }
       })
       .catch(console.error);
-  }, []);
+  }, [currentPage]);
 
   const filteredSubmissions = submissions.filter(sub => {
     const matchContest = filterContest === 'all' || sub.question?.contestId === filterContest;
@@ -196,6 +201,29 @@ export default function AdminSubmissionsPage() {
                 })}
               </tbody>
             </table>
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="px-5 py-4 flex items-center justify-between border-t border-border bg-muted/5">
+                <button 
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:bg-muted/30 transition-colors"
+                >
+                  Previous
+                </button>
+                <span className="text-xs font-medium text-muted-foreground">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button 
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground disabled:opacity-50 disabled:cursor-not-allowed hover:bg-muted/30 transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

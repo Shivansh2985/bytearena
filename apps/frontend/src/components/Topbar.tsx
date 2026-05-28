@@ -1,8 +1,9 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Menu, Bell, Search, Zap, ChevronDown } from 'lucide-react';
 import { signOut } from 'next-auth/react';
+import { useSocket } from '@/providers/SocketProvider';
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -11,17 +12,80 @@ interface TopbarProps {
   user?: any;
 }
 
-const notifications = [
-  { id: 'notif-1', type: 'contest', message: 'ByteBlitz Weekly #18 starts in 2 hours', time: '2h ago', unread: true },
-  { id: 'notif-2', type: 'rank', message: 'Your rank improved to #342 globally', time: '5h ago', unread: true },
-  { id: 'notif-3', type: 'badge', message: 'Achievement unlocked: "Speed Demon"', time: '1d ago', unread: true },
-  { id: 'notif-4', type: 'contest', message: 'Results published: CodeStorm #12', time: '2d ago', unread: false },
-];
-
 export default function Topbar({ onMenuClick, role = 'student', user }: TopbarProps) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const unreadCount = notifications.filter((n) => n.unread).length;
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  
+  const { socket } = useSocket();
+
+  useEffect(() => {
+    if (user?.id) {
+      fetch('/api/notifications')
+        .then(res => res.json())
+        .then(data => {
+          if (data.notifications) {
+            setNotifications(data.notifications);
+            setUnreadCount(data.unreadCount || 0);
+          }
+        })
+        .catch(console.error);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (socket && user?.id) {
+      const handleNotif = (notif: any) => {
+        setNotifications(prev => [notif, ...prev]);
+        setUnreadCount(prev => prev + 1);
+      };
+      socket.on('notification', handleNotif);
+      return () => {
+        socket.off('notification', handleNotif);
+      };
+    }
+  }, [socket, user]);
+
+  const requestPushPermission = async () => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      alert('Push notifications are not supported in your browser.');
+      return;
+    }
+
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        alert('Permission not granted for push notifications.');
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.register('/service-worker.js');
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      });
+
+      await fetch('/api/notifications/push-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(subscription)
+      });
+      alert('Push notifications enabled!');
+    } catch (e) {
+      console.error('Error setting up push notifications:', e);
+    }
+  };
+
+  const markAllRead = async () => {
+    try {
+      await fetch('/api/notifications/read-all', { method: 'POST' });
+      setUnreadCount(0);
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    } catch (e) {
+      console.error('Error marking all as read', e);
+    }
+  };
   
   const displayName = user?.name || (user?.firstName ? `${user.firstName} ${user.lastName || ''}` : '') || 'User';
   const displayRating = user?.rating ?? 1200;
@@ -93,20 +157,25 @@ export default function Topbar({ onMenuClick, role = 'student', user }: TopbarPr
             <div className="absolute right-0 top-12 w-80 glass border border-border rounded-xl shadow-2xl z-50 fade-in overflow-hidden">
               <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                 <span className="text-sm font-semibold text-foreground">Notifications</span>
-                <button className="text-xs text-primary hover:text-sky-300 transition-colors">Mark all read</button>
+                <button onClick={markAllRead} className="text-xs text-primary hover:text-sky-300 transition-colors">Mark all read</button>
               </div>
               <div className="max-h-72 overflow-y-auto">
+                {notifications.length === 0 && (
+                  <div className="p-4 text-center text-sm text-muted-foreground">No notifications.</div>
+                )}
                 {notifications.map((n) => (
                   <div
                     key={n.id}
-                    className={`px-4 py-3 border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer ${n.unread ? 'bg-primary/5' : ''}`}
+                    className={`px-4 py-3 border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer ${!n.isRead ? 'bg-primary/5' : ''}`}
                   >
+                    <p className="text-xs font-semibold text-foreground mb-0.5">{n.title}</p>
                     <p className="text-sm text-foreground leading-snug">{n.message}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{n.time}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{new Date(n.createdAt).toLocaleDateString()}</p>
                   </div>
                 ))}
               </div>
-              <div className="px-4 py-2.5 text-center">
+              <div className="px-4 py-2.5 text-center flex flex-col gap-2">
+                <button onClick={requestPushPermission} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Enable Browser Push Alerts</button>
                 <button className="text-xs text-primary hover:text-sky-300 transition-colors">View all notifications</button>
               </div>
             </div>

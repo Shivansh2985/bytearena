@@ -51,7 +51,8 @@ export default function ContestFeed() {
       .then((res) => res.json())
       .then((data) => {
         if (!data.error) {
-          setContests(data);
+          const actualData = Array.isArray(data) ? data : (data.data || []);
+          setContests(actualData);
         }
         setLoading(false);
       })
