@@ -1,10 +1,20 @@
 import { logger } from './logger';
 import { getSystemMetrics } from './metrics';
+import { getRedisClient } from '../../lib/redis';
 
 export const checkSystemHealth = async () => {
   try {
     const metrics = await getSystemMetrics();
     
+    // Persist historical telemetry to Redis
+    const redis = getRedisClient();
+    const metricSnapshot = {
+      timestamp: Date.now(),
+      metrics,
+    };
+    await redis.lpush('system_metrics:history', JSON.stringify(metricSnapshot));
+    await redis.ltrim('system_metrics:history', 0, 1440); // Keep last 24 hours (1440 mins)
+
     // Check Redis Connections
     const connectedClients = parseInt(metrics.redis.clients?.connected_clients || '0', 10);
     if (connectedClients > 15) {

@@ -1,6 +1,7 @@
 import { randomString, randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
-import { WebSocket } from 'k6/experimental/websockets';
-import { setTimeout, setInterval, clearInterval } from 'k6/experimental/timers';
+import { WebSocket } from "k6/websockets";
+
+
 import { check } from 'k6';
 
 export const options = {

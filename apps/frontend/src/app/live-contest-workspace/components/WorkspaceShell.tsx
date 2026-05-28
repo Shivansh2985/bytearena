@@ -1,5 +1,6 @@
 'use client';
 import { apiFetch } from '@/lib/api';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import ContestTopBar from './ContestTopBar';
 import ProblemPanel from './ProblemPanel';
@@ -13,6 +14,7 @@ import { useSession } from 'next-auth/react';
 import { useSocket } from '@/providers/SocketProvider';
 import { trackedOn, trackedOff } from '@/lib/socket';
 import { useLiveKit } from '@/providers/LiveKitProvider';
+import { AlertTriangle } from 'lucide-react';
 
 export type ProblemStatus = 'unattempted' | 'attempted' | 'answered';
 
@@ -292,7 +294,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
   const [isCompleted, setIsCompleted] = useState(false);
   const [contestEndTime, setContestEndTime] = useState<number | null>(null);
   const [contestStartTime, setContestStartTime] = useState<number | null>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const { data: currentUser } = useCurrentUser();
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [reviewingSubmission, setReviewingSubmission] = useState<{
     userName: string;
@@ -300,18 +302,6 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
     code: string;
     language: Language;
   } | null>(null);
-
-  // Fetch current user details
-  useEffect(() => {
-    apiFetch('/api/users/me')
-      .then(res => res.json())
-      .then(data => {
-        if (!data.error) {
-          setCurrentUser(data);
-        }
-      })
-      .catch(console.error);
-  }, []);
 
   useEffect(() => {
     if (!contestId) {
@@ -923,8 +913,10 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
   }, [contestId]);
 
   // Proctoring: simulate focus loss
+  const [tabWarningModal, setTabWarningModal] = useState<{ show: boolean, warnings: number }>({ show: false, warnings: 0 });
+
   useEffect(() => {
-    if (isCompleted) return;
+    if (isCompleted || !permissionsGranted) return;
     const handleBlur = () => {
       setProctoringWarning(true);
       const newLog = { id: Date.now().toString(), time: new Date().toLocaleTimeString(), type: 'focus_loss', message: 'Tab focus lost — switched to another window', severity: 'high' };
@@ -938,11 +930,10 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       }
 
       tabSwitchWarningsRef.current += 1;
+      setTabWarningModal({ show: true, warnings: tabSwitchWarningsRef.current });
+      
       if (tabSwitchWarningsRef.current >= 3) {
-         alert("You have switched tabs too many times. Your contest is being automatically submitted.");
          handleEndContest(true);
-      } else {
-         alert(`WARNING: You are not allowed to switch tabs during a live contest. This is warning ${tabSwitchWarningsRef.current} of 2. You will be removed from the contest on the 3rd offense.`);
       }
     };
     const handleFocus = () => {
@@ -961,7 +952,7 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       window.removeEventListener('blur', handleBlur);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [contestId, isCompleted, handleEndContest]);
+  }, [contestId, isCompleted, handleEndContest, permissionsGranted]);
 
 
 
@@ -1218,6 +1209,33 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
 
       {/* Proctoring border warning */}
       {proctoringWarning && !isCompleted && <div className="proctor-overlay" aria-hidden="true" />}
+
+      {/* Tab Warning Modal */}
+      {tabWarningModal.show && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-card border border-red-500/30 w-full max-w-md rounded-2xl p-6 shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mb-4">
+              <AlertTriangle size={32} />
+            </div>
+            <h2 className="text-xl font-bold text-foreground mb-2">Tab Switching Detected</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              You are not allowed to switch tabs or leave the contest window during a live contest. This is warning <strong className="text-red-400">{tabWarningModal.warnings} of 2</strong>.
+              {tabWarningModal.warnings >= 3 ? " You have been automatically disqualified." : " You will be automatically disqualified on the 3rd offense."}
+            </p>
+            <button
+              onClick={() => {
+                setTabWarningModal({ show: false, warnings: tabWarningModal.warnings });
+                if (tabWarningModal.warnings >= 3) {
+                  handleEndContest(true);
+                }
+              }}
+              className="w-full py-2.5 rounded-lg bg-red-500/10 text-red-500 font-semibold hover:bg-red-500/20 border border-red-500/20 transition-all active:scale-95"
+            >
+              I Understand
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Top bar */}
       <ContestTopBar

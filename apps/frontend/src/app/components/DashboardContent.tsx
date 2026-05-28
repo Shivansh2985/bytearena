@@ -1,6 +1,6 @@
 'use client';
-import { apiFetch } from '@/lib/api';
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import Link from 'next/link';
 import MetricsBentoGrid from './MetricsBentoGrid';
 import ContestFeed from './ContestFeed';
@@ -9,22 +9,13 @@ import ActivityFeed from './ActivityFeed';
 import UpcomingContests from './UpcomingContests';
 
 export default function DashboardContent() {
-  const [user, setUser] = useState<any>(null);
+  const { data: user, isLoading } = useCurrentUser();
 
   useEffect(() => {
-    apiFetch('/api/users/me')
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data.error) {
-          if (data.role === 'ADMIN') {
-            window.location.href = '/admin/dashboard';
-            return;
-          }
-          setUser(data);
-        }
-      })
-      .catch((err) => console.error('Failed to fetch dashboard user data:', err));
-  }, []);
+    if (user && user.role === 'ADMIN') {
+      window.location.href = '/admin/dashboard';
+    }
+  }, [user]);
 
   const displayName = user?.name || (user?.firstName ? `${user.firstName} ${user.lastName || ''}` : '') || 'User';
 

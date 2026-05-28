@@ -1,7 +1,8 @@
 'use client';
 import { apiFetch } from '@/lib/api';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AppLayout from '@/components/AppLayout';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { Settings, Bell, Shield, Palette, User, Eye, EyeOff, Save, Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
@@ -18,7 +19,7 @@ export default function SettingsPage() {
     setMounted(true);
   }, []);
 
-  const [user, setUser] = useState<any>(null);
+  const { data: user } = useCurrentUser();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -28,23 +29,17 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
-  React.useEffect(() => {
-    apiFetch('/api/users/me')
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data.error) {
-          setUser(data);
-          const nameParts = (data.name || '').split(' ');
-          setFormData({
-            firstName: data.firstName || nameParts[0] || '',
-            lastName: data.lastName || nameParts.slice(1).join(' ') || '',
-            username: data.username || data.email?.split('@')[0] || '',
-            bio: data.bio || '',
-          });
-        }
-      })
-      .catch((err) => console.error('Failed to fetch settings user data:', err));
-  }, []);
+  useEffect(() => {
+    if (user) {
+      const nameParts = (user.name || '').split(' ');
+      setFormData({
+        firstName: user.firstName || nameParts[0] || '',
+        lastName: user.lastName || nameParts.slice(1).join(' ') || '',
+        username: user.username || user.email?.split('@')[0] || '',
+        bio: user.bio || '',
+      });
+    }
+  }, [user]);
 
   const handleSave = async () => {
     setLoading(true);
@@ -57,7 +52,8 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       if (!data.error) {
-        setUser(data);
+        // Optimistically we don't need to setUser since the hook manages it, 
+        // but we could invalidate the query if needed. For now we just show success.
         setSaveStatus('success');
       } else {
         setSaveStatus('error');

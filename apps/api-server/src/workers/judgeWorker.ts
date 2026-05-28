@@ -317,14 +317,15 @@ export const judgeWorker = new Worker(
     let finalError = '';
     const testcaseResults: any[] = [];
 
-    for (const tc of testCasesToRun) {
-      const result = await executeCode(
-        code,
-        language,
-        tc.input,
-        { waitForResult: true }
-      );
-      
+    // Parallelize execution for speed
+    const executionPromises = testCasesToRun.map(tc =>
+      executeCode(code, language, tc.input, { waitForResult: true })
+        .then(result => ({ tc, result }))
+    );
+
+    const results = await Promise.all(executionPromises);
+
+    for (const { tc, result } of results) {
       if (result.status === 'compilation_error') {
         finalStatus = 'compile_error';
         finalError = result.error || 'Compilation failed';

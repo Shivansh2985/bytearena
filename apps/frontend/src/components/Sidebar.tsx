@@ -22,6 +22,7 @@ import {
   Star,
   PlusCircle,
   Activity,
+  Bookmark,
 } from 'lucide-react';
 import Icon from '@/components/ui/AppIcon';
 
@@ -56,6 +57,7 @@ const userNavGroups: NavGroup[] = [
     items: [
       { icon: LayoutDashboard, label: 'Dashboard', href: '/user-dashboard', badge: null },
       { icon: Swords, label: 'Contests', href: '/contests', badge: null },
+      { icon: Bookmark, label: 'My Contests', href: '/my-contests', badge: null },
       { icon: Trophy, label: 'Leaderboard', href: '/leaderboard', badge: null },
       { icon: Zap, label: 'Battleground', href: '/battleground', badge: null },
     ],

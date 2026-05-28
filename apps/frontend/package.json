@@ -64,6 +64,7 @@
     "@socket.io/redis-adapter": "^8.3.0",
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/typography": "^0.5.16",
+    "@tanstack/react-query": "^5.100.14",
     "@types/bcrypt": "^6.0.0",
     "@uiw/codemirror-themes-all": "^4.25.10",
     "@uiw/react-codemirror": "^4.23.7",

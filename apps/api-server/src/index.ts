@@ -239,8 +239,8 @@ app.get('/health', (_req, res) => {
 // BullMQ Queues (Producers ONLY, no consumers)
 // ─────────────────────────────────────────────────────────────
 import './queues';
-// REMOVED: import './workers/judgeWorker';
-// Worker must be started separately via worker.ts
+import './workers/judgeWorker';
+// Worker can also be started separately via worker.ts if preferred
 
 
 // ─────────────────────────────────────────────────────────────

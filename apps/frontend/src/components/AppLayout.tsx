@@ -1,6 +1,6 @@
 'use client';
-import { apiFetch } from '@/lib/api';
 import React, { useState } from 'react';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import ToastProvider from './ui/Toast';
@@ -14,18 +14,7 @@ interface AppLayoutProps {
 export default function AppLayout({ children, currentPath = '/', role = 'student' }: AppLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
-
-  React.useEffect(() => {
-    apiFetch('/api/users/me')
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data.error) {
-          setUser(data);
-        }
-      })
-      .catch((err) => console.error('Failed to fetch user profile:', err));
-  }, []);
+  const { data: user } = useCurrentUser();
 
   return (
     <div className="flex h-screen bg-galaxy overflow-hidden">

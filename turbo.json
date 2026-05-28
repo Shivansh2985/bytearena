@@ -3,6 +3,16 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "env": [
+        "DATABASE_URL",
+        "AUTH_SECRET",
+        "NEXTAUTH_URL",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "CLOUDINARY_URL",
+        "JUDGE0_API_URL",
+        "JUDGE0_API_KEY"
+      ],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "lint": {

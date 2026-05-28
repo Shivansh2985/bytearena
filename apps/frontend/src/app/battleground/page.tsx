@@ -2,6 +2,7 @@
 import { apiFetch } from '@/lib/api';
 import React, { useState } from 'react';
 import AppLayout from '@/components/AppLayout';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { Zap, Trophy, Star, Award, Flame, ArrowUp, ArrowDown, Users, BarChart2, Calendar,  } from 'lucide-react';
 import { AreaChart, Area, RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid,  } from 'recharts';
 import Icon from '@/components/ui/AppIcon';
@@ -61,20 +62,11 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 
 export default function BattlegroundPage() {
   const [activeTab, setActiveTab] = useState<'rating' | 'skills'>('rating');
-  const [user, setUser] = useState<any>(null);
+  const { data: user } = useCurrentUser();
   const [topUsersList, setTopUsersList] = useState<any[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
 
   React.useEffect(() => {
-    apiFetch('/api/users/me')
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data.error) {
-          setUser(data);
-        }
-      })
-      .catch((err) => console.error('Failed to fetch battleground user:', err));
-
     apiFetch('/api/users/leaderboard?take=5')
       .then((res) => res.json())
       .then((data) => {

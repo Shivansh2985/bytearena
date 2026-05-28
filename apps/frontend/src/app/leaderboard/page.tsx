@@ -2,6 +2,7 @@
 import { apiFetch } from '@/lib/api';
 import React, { useState } from 'react';
 import AppLayout from '@/components/AppLayout';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { Trophy, Search, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 interface LeaderboardEntry {
@@ -41,22 +42,11 @@ const tierColors: Record<string, string> = {
 export default function LeaderboardPage() {
   const [search, setSearch] = useState('');
   const [period, setPeriod] = useState<'all' | 'month' | 'week'>('all');
-  const [user, setUser] = useState<any>(null);
+  const { data: user } = useCurrentUser();
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-
-  React.useEffect(() => {
-    apiFetch('/api/users/me')
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data.error) {
-          setUser(data);
-        }
-      })
-      .catch((err) => console.error('Failed to fetch leaderboard user data:', err));
-  }, []);
 
   React.useEffect(() => {
     setLoading(true);

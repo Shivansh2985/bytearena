@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Metadata, Viewport } from 'next';
 import { SessionProvider } from 'next-auth/react';
+import ReactQueryProvider from '@/providers/ReactQueryProvider';
 import { Geist } from 'next/font/google';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import '../styles/tailwind.css';
@@ -34,7 +35,9 @@ export default function RootLayout({
       <body className={`${geist.className} bg-background text-foreground antialiased min-h-screen`} suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
           <SessionProvider>
-            {children}
+            <ReactQueryProvider>
+              {children}
+            </ReactQueryProvider>
           </SessionProvider>
         </ThemeProvider>
       </body>

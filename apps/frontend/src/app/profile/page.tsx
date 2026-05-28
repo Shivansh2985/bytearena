@@ -2,6 +2,7 @@
 import { apiFetch } from '@/lib/api';
 import React, { useState } from 'react';
 import AppLayout from '@/components/AppLayout';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { MapPin, Link2, Edit3, Code2, Star, Briefcase, Award, ExternalLink,  } from 'lucide-react';
 
 function GithubIcon({ size = 14 }: { size?: number }) {
@@ -24,18 +25,7 @@ function TwitterIcon({ size = 14 }: { size?: number }) {
 
 export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'experience'>('overview');
-  const [user, setUser] = useState<any>(null);
-
-  React.useEffect(() => {
-    apiFetch('/api/users/me')
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data.error) {
-          setUser(data);
-        }
-      })
-      .catch((err) => console.error('Failed to fetch profile user data:', err));
-  }, []);
+  const { data: user } = useCurrentUser();
 
   const displayName = user?.name || (user?.firstName ? `${user.firstName} ${user.lastName || ''}` : '') || 'User';
   const displayRating = user?.rating ?? 1200;
