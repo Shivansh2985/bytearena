@@ -144,6 +144,20 @@ router.post('/', requireAdmin, async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+// ─── DELETE /api/contests/:id - Delete a contest (admin only) ────
+router.delete('/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    await prisma.contest.delete({
+      where: { id }
+    });
+    return res.json({ success: true, message: 'Contest deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting contest:', error);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 
 // ─── PUT /api/contests/:id - Edit a contest (admin only) ────
 router.put('/:id', requireAdmin, async (req: AuthRequest, res: Response) => {

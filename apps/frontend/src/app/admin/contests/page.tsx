@@ -66,6 +66,21 @@ export default function AdminContestsPage() {
     return matchSearch && matchFilter;
   });
 
+  const handleDeleteContest = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this contest? This action cannot be undone.')) return;
+    try {
+      const res = await apiFetch(`/api/contests/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setContests(prev => prev.filter(c => c.id !== id));
+      } else {
+        alert('Failed to delete contest');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error deleting contest');
+    }
+  };
+
   return (
     <AppLayout currentPath="/admin/contests" role="admin">
       <div className="px-6 lg:px-8 xl:px-10 py-6 max-w-screen-2xl mx-auto space-y-6">
@@ -181,7 +196,7 @@ export default function AdminContestsPage() {
                       <Edit2 size={14} />
                     </button>
                   </Link>
-                  <button className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Delete">
+                  <button onClick={() => handleDeleteContest(c.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Delete">
                     <Trash2 size={14} />
                   </button>
                 </div>
