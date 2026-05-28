@@ -1,0 +1,1 @@
+sed -i '' 's/import { LiveKitRoom, useTracks, VideoTrack, AudioTrack, useConnectionState } from '"'"'@livekit\/components-react'"'"';/import { LiveKitRoom, useRemoteParticipant, VideoTrack, AudioTrack, useConnectionState } from '"'"'@livekit\/components-react'"'"';/' apps/frontend/src/app/admin/proctoring/page.tsx

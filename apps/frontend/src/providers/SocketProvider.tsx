@@ -1,5 +1,5 @@
 'use client';
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useMemo } from 'react';
 import { Socket } from 'socket.io-client';
 import { getSocket, getDebugMetrics } from '@/lib/socket';
 
@@ -65,11 +65,11 @@ export const SocketProvider = ({
   }, [token, url]);
 
   // Expose context
-  const value = {
+  const value = useMemo(() => ({
     socket,
     isConnected,
     metrics: getDebugMetrics()
-  };
+  }), [socket, isConnected]);
 
   return (
     <SocketContext.Provider value={value}>

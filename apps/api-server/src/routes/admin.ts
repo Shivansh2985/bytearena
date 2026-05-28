@@ -277,4 +277,87 @@ router.delete('/participants/:id', requireAdmin, async (req: Request, res: Respo
   }
 });
 
+router.post('/contests/:id/publish-results', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    // 1. Fetch contest and validate
+    const contest = await prisma.contest.findUnique({
+      where: { id },
+      include: {
+        participants: {
+          include: { user: true }
+        }
+      }
+    });
+
+    if (!contest) return res.status(404).json({ error: 'Contest not found' });
+    if (contest.status !== 'COMPLETED') return res.status(400).json({ error: 'Contest must be completed to publish results' });
+    if (contest.resultsPublished) return res.status(400).json({ error: 'Results already published' });
+
+    // 2. Sort participants by score descending to determine ranks
+    const participants = [...contest.participants].sort((a, b) => b.score - a.score);
+    const N = participants.length;
+
+    // 3. Process each participant in a transaction
+    await prisma.$transaction(async (tx) => {
+      for (let i = 0; i < N; i++) {
+        const p = participants[i];
+        const rank = i + 1;
+        
+        // ELO Calculation (Simplified for N-player contest)
+        // Rating change varies between +50 (1st place) and -50 (Last place)
+        // If N=1, change is 0.
+        let ratingChange = 0;
+        if (N > 1) {
+          const percentile = (N - rank) / (N - 1); // 1.0 for 1st, 0.0 for last
+          ratingChange = Math.round((percentile - 0.5) * 100);
+        }
+
+        const newRating = Math.max(0, p.user.rating + ratingChange); // Prevent negative rating
+
+        // Update Participant Rank
+        await tx.contestParticipant.update({
+          where: { id: p.id },
+          data: { rank }
+        });
+
+        // Create Rating History
+        await tx.ratingHistory.create({
+          data: {
+            userId: p.userId,
+            contestId: contest.id,
+            ratingChange,
+            newRating
+          }
+        });
+
+        // Update User Rating
+        await tx.user.update({
+          where: { id: p.userId },
+          data: { rating: newRating }
+        });
+        
+        // Notify User
+        await sendNotification(
+          p.userId,
+          "Contest Results Published!",
+          `Results for ${contest.title} are out. You ranked #${rank} and your rating changed by ${ratingChange > 0 ? '+' : ''}${ratingChange}.`
+        );
+      }
+
+      // Mark contest as published
+      await tx.contest.update({
+        where: { id: contest.id },
+        data: { resultsPublished: true }
+      });
+    });
+
+    return res.json({ success: true, message: 'Results published successfully' });
+  } catch (error) {
+    console.error('Publish results error:', error);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 export default router;

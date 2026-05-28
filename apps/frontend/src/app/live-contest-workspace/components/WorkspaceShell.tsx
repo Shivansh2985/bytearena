@@ -640,23 +640,20 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
   useEffect(() => {
     if (isCompleted || !currentUser || !socket) return;
     
-    // ❌ ISSUE: Previously, Socket recreated on rerender. Now using singleton from Provider.
-    // ❌ ISSUE: Previously, Cleanup disconnects global socket. Now using .off() in provider.
-    // ❌ ISSUE: Previously, Duplicate socket listeners. Ensure we bind once per component lifecycle.
-    
     const handleConnectError = (err: any) => {
       console.error('❌ Contestant socket connection error:', err);
     };
 
-    if (socket.connected) {
+    const handleConnect = () => {
       socket.emit('join-contest', contestId);
-    } else {
-      socket.once('connect', () => {
-        socket.emit('join-contest', contestId);
-      });
-    }
+    };
 
-    socket.on('connect_error', handleConnectError);
+    if (socket.connected) {
+      handleConnect();
+    }
+    
+    trackedOn(socket, 'connect', handleConnect);
+    trackedOn(socket, 'connect_error', handleConnectError);
 
     const handleUnload = () => {
       socket.emit('leave-contest', contestId);
@@ -665,12 +662,12 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
     window.addEventListener('beforeunload', handleUnload);
 
     return () => {
-      socket.off('connect_error', handleConnectError);
+      trackedOff(socket, 'connect', handleConnect);
+      trackedOff(socket, 'connect_error', handleConnectError);
       window.removeEventListener('beforeunload', handleUnload);
-      // We explicitly DO NOT call socket.disconnect() here to prevent rerender storms!
       socket.emit('leave-contest', contestId);
     };
-  }, [contestId, isCompleted, currentUser, socket]);
+  }, [contestId, isCompleted, currentUser?.id, socket]);
 
   // Handle stream orchestration: Continuous Publish SFU Model
   useEffect(() => {
@@ -812,20 +809,20 @@ export default function WorkspaceShell({ contestId }: { contestId?: string }) {
       }
     };
 
-    socket.on('admin:voice-started', onVoiceStarted);
-    socket.on('admin:voice-stopped', onVoiceStopped);
-    socket.on('admin:kick', onAdminKick);
+    trackedOn(socket, 'admin:voice-started', onVoiceStarted);
+    trackedOn(socket, 'admin:voice-stopped', onVoiceStopped);
+    trackedOn(socket, 'admin:kick', onAdminKick);
 
     return () => {
-      socket.off('admin:voice-started', onVoiceStarted);
-      socket.off('admin:voice-stopped', onVoiceStopped);
-      socket.off('admin:kick', onAdminKick);
+      trackedOff(socket, 'admin:voice-started', onVoiceStarted);
+      trackedOff(socket, 'admin:voice-stopped', onVoiceStopped);
+      trackedOff(socket, 'admin:kick', onAdminKick);
       if (adminVoiceRoom) {
         adminVoiceRoom.disconnect();
         adminVoiceRoom = null;
       }
     };
-  }, [socket, currentUser, contestId]);
+  }, [socket, currentUser?.id, contestId]);
 
   const currentProblemList = dynamicProblems.length > 0 ? dynamicProblems : problems;
   

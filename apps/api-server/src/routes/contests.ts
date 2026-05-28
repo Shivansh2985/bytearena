@@ -102,6 +102,79 @@ router.get('/', optionalAuth, async (req: AuthRequest, res: Response) => {
   }
 });
 
+// ─── GET /api/contests/my-contests - List contests for user ──────────────────
+router.get('/my-contests', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const skip = (page - 1) * limit;
+
+    const [contests, total] = await Promise.all([
+      prisma.contest.findMany({
+        where: {
+          OR: [
+            { registrations: { some: { userId } } },
+            { participants: { some: { userId } } }
+          ]
+        },
+        orderBy: { startTime: 'desc' },
+        skip,
+        take: limit,
+        include: {
+          _count: {
+            select: { participants: true, questions: true },
+          },
+          participants: { where: { userId } }
+        }
+      }),
+      prisma.contest.count({
+        where: {
+          OR: [
+            { registrations: { some: { userId } } },
+            { participants: { some: { userId } } }
+          ]
+        }
+      })
+    ]);
+
+    const formattedContests = contests.map((c: any) => {
+      const nowMs = Date.now();
+      const startTime = new Date(c.startTime).getTime();
+      const endTime = new Date(c.endTime).getTime();
+      
+      let computedStatus = 'upcoming';
+      if (nowMs >= startTime && nowMs < endTime) {
+        computedStatus = 'live';
+      } else if (nowMs >= endTime) {
+        computedStatus = 'completed';
+      }
+
+      return {
+        id: c.id,
+        title: c.title,
+        description: c.description,
+        difficulty: c.difficulty,
+        status: computedStatus,
+        resultsPublished: c.resultsPublished,
+        startTime,
+        endTime,
+        participants: c._count.participants,
+        totalQuestions: c._count.questions,
+        myRank: c.participants?.length > 0 ? c.participants[0].rank : null,
+        myScore: c.participants?.length > 0 ? c.participants[0].score : null,
+      };
+    });
+
+    return res.json({ data: formattedContests, total, page, totalPages: Math.ceil(total / limit) });
+  } catch (error) {
+    console.error('Error fetching my-contests:', error);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // ─── POST /api/contests - Create a new contest (admin only) ─
 router.post('/', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
@@ -273,6 +346,84 @@ router.get('/:id', optionalAuth, async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error('Error fetching contest details:', error);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// ─── GET /api/contests/:id/results - Get published results ────────────
+router.get('/:id/results', optionalAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const skip = (page - 1) * limit;
+
+    const contest = await prisma.contest.findUnique({
+      where: { id },
+      select: { resultsPublished: true, title: true }
+    });
+
+    if (!contest) return res.status(404).json({ error: 'Contest not found' });
+    if (!contest.resultsPublished) return res.status(403).json({ error: 'Results have not been published yet' });
+
+    const [participants, total] = await Promise.all([
+      prisma.contestParticipant.findMany({
+        where: { contestId: id },
+        orderBy: { rank: 'asc' },
+        skip,
+        take: limit,
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              name: true,
+              email: true,
+              rating: true,
+              imageUrl: true,
+            }
+          }
+        }
+      }),
+      prisma.contestParticipant.count({ where: { contestId: id } })
+    ]);
+
+    // Fetch rating changes for these participants
+    const userIds = participants.map(p => p.userId);
+    const ratingChanges = await prisma.ratingHistory.findMany({
+      where: {
+        contestId: id,
+        userId: { in: userIds }
+      }
+    });
+
+    const results = participants.map(p => {
+      const history = ratingChanges.find(r => r.userId === p.userId);
+      return {
+        id: p.id,
+        userId: p.userId,
+        rank: p.rank,
+        score: p.score,
+        user: {
+          name: p.user.name || p.user.email,
+          username: p.user.username,
+          rating: p.user.rating,
+          avatar: p.user.imageUrl || (p.user.name || p.user.email || 'U').substring(0, 2).toUpperCase()
+        },
+        ratingChange: history?.ratingChange || 0,
+        newRating: history?.newRating || p.user.rating
+      };
+    });
+
+    return res.json({
+      contestTitle: contest.title,
+      data: results,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit)
+    });
+  } catch (error) {
+    console.error('Error fetching results:', error);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 });

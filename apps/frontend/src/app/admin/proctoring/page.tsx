@@ -5,7 +5,7 @@ import AppLayout from '@/components/AppLayout';
 import { Eye, AlertTriangle, Camera, CameraOff, Monitor, ShieldOff, Users, Activity, X, CheckCircle, ChevronRight, Video, Volume2, VolumeX, Maximize, UserX, Mic, MicOff } from 'lucide-react';
 import { useSocket } from '@/providers/SocketProvider';
 import { useSession } from 'next-auth/react';
-import { LiveKitRoom, useTracks, VideoTrack, AudioTrack, useConnectionState } from '@livekit/components-react';
+import { LiveKitRoom, useRemoteParticipant, VideoTrack, AudioTrack, useConnectionState } from '@livekit/components-react';
 import { Track, Room, createLocalAudioTrack } from 'livekit-client';
 import { RealtimeProvider } from '@/providers/RealtimeProvider';
 import '@livekit/components-styles';
@@ -79,35 +79,33 @@ function AdminMicControls({ selectedParticipantId, contestId }: { selectedPartic
 }
 
 function SingleParticipantVideo({ identity, contestId }: { identity: string, contestId: string }) {
-  const tracks = useTracks([Track.Source.Camera]);
-  const audioTracks = useTracks([Track.Source.Microphone]);
-  const track = tracks.find(t => t.participant.identity === identity);
-  const audioTrack = audioTracks.find(t => t.participant.identity === identity);
+  const participant = useRemoteParticipant(identity);
   
   const connectionState = useConnectionState();
   const [isMuted, setIsMuted] = useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
   
+  // Throttle logs using a ref to prevent spam
+  const logThrottler = React.useRef(0);
   useEffect(() => {
-    console.log(`[Admin] Checking subscription for identity: ${identity}`);
-    if (track) {
-      console.log(`[Admin] Found Track.Source.Camera for ${identity}.`);
-      console.log(`[Admin] Track details:`, { 
-        participant: track.participant.identity, 
-        source: track.source, 
-        kind: track.publication?.kind 
+    const now = Date.now();
+    if (participant && now - logThrottler.current > 10000) {
+      logThrottler.current = now;
+      console.log(`[Admin] Participant state for ${identity}:`, { 
+        camera: participant.isCameraEnabled,
+        mic: participant.isMicrophoneEnabled
       });
     }
-  }, [track, identity]);
+  }, [participant?.isCameraEnabled, identity]);
   
-  if (!track) {
+  if (!participant || !participant.isCameraEnabled) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-black text-muted-foreground text-sm flex-col gap-2">
         <div className={`w-8 h-8 rounded-full ${connectionState === 'disconnected' ? 'bg-red-500/20' : 'bg-muted/20 animate-pulse'} flex items-center justify-center`}>
           <Camera size={14} className={connectionState === 'disconnected' ? 'text-red-400' : 'text-muted-foreground'} />
         </div>
         {connectionState === 'connecting' ? 'Connecting...' : 
-         connectionState === 'disconnected' ? 'TRACK_UNSUBSCRIBED / MEDIA_RECOVERING' : 'Waiting for Video Track...'}
+         connectionState === 'disconnected' ? 'DISCONNECTED' : 'Waiting for Video Track...'}
         <span className="text-[10px] opacity-50 uppercase tracking-widest">{connectionState}</span>
       </div>
     );
@@ -115,8 +113,8 @@ function SingleParticipantVideo({ identity, contestId }: { identity: string, con
   
   return (
     <div ref={containerRef} className="w-full h-full relative group">
-      <VideoTrack trackRef={track} className="w-full h-full object-cover" />
-      {audioTrack && !isMuted && <AudioTrack trackRef={audioTrack} />}
+      <VideoTrack participant={participant} source={Track.Source.Camera} className="w-full h-full object-cover" />
+      {participant.isMicrophoneEnabled && !isMuted && <AudioTrack participant={participant} source={Track.Source.Microphone} />}
       
       <div className="absolute bottom-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-50">
         <button onClick={() => setIsMuted(!isMuted)} className="p-2 bg-black/50 hover:bg-black/80 rounded text-white backdrop-blur">
@@ -236,11 +234,11 @@ function AdminProctoringContent() {
     const handleProctorAlert = (data: any) => console.log('Proctor alert:', data);
     
     // ❌ ISSUE: Duplicate listener registration fixed by unbinding first
-    socket.off('proctor:alert', handleProctorAlert);
-    socket.on('proctor:alert', handleProctorAlert);
+    trackedOff(socket, 'proctor:alert', handleProctorAlert);
+    trackedOn(socket, 'proctor:alert', handleProctorAlert);
     
     return () => {
-      socket.off('proctor:alert', handleProctorAlert);
+      trackedOff(socket, 'proctor:alert', handleProctorAlert);
     };
   }, [socket]);
 

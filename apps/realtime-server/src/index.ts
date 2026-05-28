@@ -1,6 +1,6 @@
 // import express from 'express';
 // import { createServer } from 'http';
-// import { Server } from 'socket.io';
+// import { Server, Socket } from 'socket.io';
 // import { createAdapter } from '@socket.io/redis-adapter';
 // import { createClient } from 'redis';
 // import jwt from 'jsonwebtoken';
@@ -203,7 +203,7 @@
 
 import express from 'express';
 import { createServer } from 'http';
-import { Server } from 'socket.io';
+import { Server, Socket } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import { createClient } from 'redis';
 import jwt, { JwtPayload } from 'jsonwebtoken';
@@ -308,7 +308,74 @@ io.use(authMiddleware);
 telemetryIo.use(authMiddleware);
 
 // --- TELEMETRY LOGIC ---
-const activeTelemetryAdmins = new Set<any>();
+const activeTelemetryAdmins = new Set<Socket>();
+
+// --- Priority-Tiered Event Coalescing Queue ---
+interface AdminEvent {
+  type: string;
+  payload: any;
+  priority: 'CRITICAL' | 'REALTIME' | 'LOW';
+  timestamp: number;
+  id: string;
+}
+
+const MAX_BATCH_QUEUE = 5000;
+let eventQueue: AdminEvent[] = [];
+
+let flushDuration = 0;
+let oldestEventAge = 0;
+let lastBatchSize = 0;
+let publishRateSec = 0;
+let publishCounter = 0;
+
+setInterval(() => {
+  publishRateSec = publishCounter;
+  publishCounter = 0;
+}, 1000);
+
+function queueAdminEvent(type: string, payload: any, priority: 'CRITICAL' | 'REALTIME' | 'LOW' = 'LOW') {
+  const event: AdminEvent = {
+    type,
+    payload,
+    priority,
+    timestamp: Date.now(),
+    id: `${Date.now()}-${Math.random().toString(36).substring(2,9)}`
+  };
+  
+  if (priority === 'CRITICAL') {
+    publishCounter++;
+    io.to('admin-room').emit('admin:critical_event', event);
+    return;
+  }
+  
+  if (eventQueue.length >= MAX_BATCH_QUEUE) {
+    const lowPriorityIndex = eventQueue.findIndex(e => e.priority === 'LOW');
+    if (lowPriorityIndex > -1) {
+      eventQueue.splice(lowPriorityIndex, 1);
+    } else {
+      eventQueue.shift();
+    }
+  }
+  
+  eventQueue.push(event);
+}
+
+setInterval(() => {
+  const start = performance.now();
+  if (eventQueue.length > 0) {
+    lastBatchSize = eventQueue.length;
+    oldestEventAge = Date.now() - eventQueue[0].timestamp;
+    
+    publishCounter++;
+    io.to('admin-room').emit('admin:batch_events', eventQueue);
+    eventQueue = [];
+  } else {
+    lastBatchSize = 0;
+    oldestEventAge = 0;
+  }
+  flushDuration = performance.now() - start;
+}, 1000);
+// ----------------------------------------------
 
 telemetryIo.on('connection', (socket) => {
   const { userId, role, email } = socket.data as SocketData;
@@ -427,6 +494,12 @@ setInterval(async () => {
         timestamp: Date.now(),
         socketConnections: clientsCount,
         redisConnected: pubClient.isOpen,
+        memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024,
+        redisPublishRate: publishRateSec,
+        flushDuration,
+        queueAge: oldestEventAge,
+        batchSize: lastBatchSize,
+        contestRooms: io.sockets.adapter.rooms.size // Approximated
       });
     });
   } catch (err) {
@@ -466,22 +539,22 @@ io.on('connection', (socket) => {
     socket.data.activeContestId = contestId;
     console.log(`User ${userId} joined contest:${contestId}`);
 
-    io.to('admin-room').emit('contestant:joined', {
+    queueAdminEvent('contestant:joined', {
       userId,
       contestId,
       timestamp: Date.now(),
-    });
+    }, 'REALTIME');
   });
 
   socket.on('leave-contest', (contestId: string) => {
     socket.leave(`contest:${contestId}`);
     console.log(`User ${userId} left contest:${contestId}`);
 
-    io.to('admin-room').emit('contestant:left', {
+    queueAdminEvent('contestant:left', {
       userId,
       contestId,
       timestamp: Date.now(),
-    });
+    }, 'REALTIME');
   });
 
   socket.on(
@@ -492,14 +565,16 @@ io.on('connection', (socket) => {
       description: string;
       severity?: string;
     }) => {
-      io.to('admin-room').emit('proctor:alert', {
+      const isCritical = data.severity === 'CRITICAL' || data.eventType === 'multiple_faces' || data.eventType === 'no_face' || data.eventType === 'tab_switch';
+      
+      queueAdminEvent('proctor:alert', {
         userId,
         contestId: data.contestId,
         eventType: data.eventType,
         description: data.description,
         severity: data.severity || 'WARNING',
         timestamp: Date.now(),
-      });
+      }, isCritical ? 'CRITICAL' : 'LOW');
     }
   );
 
@@ -573,10 +648,10 @@ io.on('connection', (socket) => {
       // ignore if Redis is temporarily unavailable
     }
 
-    io.to('admin-room').emit('contestant:disconnected', {
+    queueAdminEvent('contestant:disconnected', {
       userId,
       timestamp: Date.now(),
-    });
+    }, 'REALTIME');
   });
 });
 

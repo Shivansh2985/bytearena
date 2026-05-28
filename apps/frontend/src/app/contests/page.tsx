@@ -51,15 +51,19 @@ export default function ContestsPage() {
   const [search, setSearch] = useState('');
   const [contests, setContests] = useState<Contest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     async function fetchContests() {
       try {
-        const res = await apiFetch('/api/contests');
+        setIsLoading(true);
+        const res = await apiFetch(`/api/contests?page=${page}&limit=12`);
         if (res.ok) {
           const data = await res.json();
           const actualData = Array.isArray(data) ? data : (data.data || []);
           setContests(actualData);
+          if (data.totalPages) setTotalPages(data.totalPages);
         }
       } catch (err) {
         console.error('Failed to fetch contests', err);
@@ -68,7 +72,7 @@ export default function ContestsPage() {
       }
     }
     fetchContests();
-  }, []);
+  }, [page]);
 
   const filtered = contests.filter((c) => {
     const matchStatus = filter === 'all' || c.status === filter;
@@ -239,6 +243,27 @@ export default function ContestsPage() {
           <div className="text-center py-16">
             <Swords size={40} className="text-muted-foreground mx-auto mb-3 opacity-40" />
             <p className="text-muted-foreground">No contests found matching your filters</p>
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex justify-center items-center space-x-4 mt-8">
+            <button 
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="px-3 py-1 rounded-md bg-input border border-border text-foreground disabled:opacity-50 hover:bg-muted transition-colors"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-muted-foreground font-medium">Page {page} of {totalPages}</span>
+            <button 
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="px-3 py-1 rounded-md bg-input border border-border text-foreground disabled:opacity-50 hover:bg-muted transition-colors"
+            >
+              Next
+            </button>
           </div>
         )}
       </div>

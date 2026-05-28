@@ -102,6 +102,7 @@ model Contest {
   startTime   DateTime
   endTime     DateTime
   tags        String[]
+  resultsPublished Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

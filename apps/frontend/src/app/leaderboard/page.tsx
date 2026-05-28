@@ -44,6 +44,8 @@ export default function LeaderboardPage() {
   const [user, setUser] = useState<any>(null);
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   React.useEffect(() => {
     apiFetch('/api/users/me')
@@ -57,23 +59,25 @@ export default function LeaderboardPage() {
   }, []);
 
   React.useEffect(() => {
-    apiFetch('/api/users/leaderboard')
+    setLoading(true);
+    apiFetch(`/api/users/leaderboard?page=${page}&limit=50`)
       .then((res) => res.json())
       .then((data) => {
-        if (Array.isArray(data)) {
-          const mapped = data.map((u: any, idx: number) => ({
-            rank: idx + 1,
+        if (data.data && Array.isArray(data.data)) {
+          const mapped = data.data.map((u: any, idx: number) => ({
+            rank: (page - 1) * 50 + idx + 1,
             name: u.name,
-            avatar: u.avatar,
+            avatar: u.imageUrl || u.name?.substring(0, 2).toUpperCase() || 'U',
             rating: u.rating,
             change: u.change || 0,
             contests: u.contests || 0,
             solved: u.solved || 0,
             country: u.country || '🇮🇳',
-            tier: u.tier,
+            tier: u.tier || 'Beginner',
             isMe: u.id === user?.id,
           }));
           setLeaderboardData(mapped);
+          setTotalPages(data.totalPages || 1);
         }
         setLoading(false);
       })
@@ -81,7 +85,7 @@ export default function LeaderboardPage() {
         console.error('Failed to fetch leaderboard:', err);
         setLoading(false);
       });
-  }, [user]);
+  }, [user, page]);
 
   const filtered = leaderboardData.filter((u) =>
     u.name.toLowerCase().includes(search.toLowerCase())
@@ -107,8 +111,9 @@ export default function LeaderboardPage() {
           </div>
         </div>
 
-        {/* Top 3 podium */}
-        <div className="grid grid-cols-3 gap-4">
+        {/* Top 3 podium (Only on page 1) */}
+        {page === 1 && (
+          <div className="grid grid-cols-3 gap-4">
           {podiumList.map((user, i) => {
             const podiumRank = i === 0 ? 2 : i === 1 ? 1 : 3;
             const heights = ['h-24', 'h-32', 'h-20'];
@@ -126,7 +131,8 @@ export default function LeaderboardPage() {
               </div>
             );
           })}
-        </div>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-3">
@@ -216,6 +222,27 @@ export default function LeaderboardPage() {
             ))}
           </div>
         </div>
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex justify-center items-center space-x-4 mt-8">
+            <button 
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="px-3 py-1 rounded-md bg-input border border-border text-foreground disabled:opacity-50 hover:bg-muted transition-colors"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-muted-foreground font-medium">Page {page} of {totalPages}</span>
+            <button 
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="px-3 py-1 rounded-md bg-input border border-border text-foreground disabled:opacity-50 hover:bg-muted transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
     </AppLayout>
   );

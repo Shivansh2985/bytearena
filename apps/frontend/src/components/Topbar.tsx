@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Menu, Bell, Search, Zap, ChevronDown } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { useSocket } from '@/providers/SocketProvider';
+import { apiFetch } from '@/lib/api';
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -22,7 +23,7 @@ export default function Topbar({ onMenuClick, role = 'student', user }: TopbarPr
 
   useEffect(() => {
     if (user?.id) {
-      fetch('/api/notifications')
+      apiFetch('/api/notifications')
         .then(res => res.json())
         .then(data => {
           if (data.notifications) {
@@ -40,9 +41,9 @@ export default function Topbar({ onMenuClick, role = 'student', user }: TopbarPr
         setNotifications(prev => [notif, ...prev]);
         setUnreadCount(prev => prev + 1);
       };
-      socket.on('notification', handleNotif);
+      trackedOn(socket, 'notification', handleNotif);
       return () => {
-        socket.off('notification', handleNotif);
+        trackedOff(socket, 'notification', handleNotif);
       };
     }
   }, [socket, user]);
@@ -66,7 +67,7 @@ export default function Topbar({ onMenuClick, role = 'student', user }: TopbarPr
         applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
       });
 
-      await fetch('/api/notifications/push-subscription', {
+      await apiFetch('/api/notifications/push-subscription', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(subscription)
@@ -79,7 +80,7 @@ export default function Topbar({ onMenuClick, role = 'student', user }: TopbarPr
 
   const markAllRead = async () => {
     try {
-      await fetch('/api/notifications/read-all', { method: 'POST' });
+      await apiFetch('/api/notifications/read-all', { method: 'POST' });
       setUnreadCount(0);
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
     } catch (e) {

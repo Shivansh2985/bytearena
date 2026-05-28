@@ -82,15 +82,12 @@ export default function MonitoringDashboard() {
     if (tSocket) attachListeners(tSocket);
     setSocket(tSocket);
 
-    // Hidden-tab suppression: Disconnect telemetry when admin tab is hidden to save backend cycles
+    // Hidden-tab suppression: just ignore events rather than disconnecting
+    let isHidden = false;
     const handleVisibilityChange = () => {
-      if (!tSocket) return;
-      if (document.hidden) {
-        console.log('[Monitoring] Tab hidden. Disconnecting telemetry to save resources.');
-        tSocket.disconnect();
-      } else {
-        console.log('[Monitoring] Tab visible. Reconnecting telemetry.');
-        tSocket.connect();
+      isHidden = document.hidden;
+      if (isHidden) {
+        console.log('[Monitoring] Tab hidden. Pausing expensive UI updates.');
       }
     };
 
@@ -105,7 +102,8 @@ export default function MonitoringDashboard() {
         tSocket.disconnect();
       }
     };
-  }, [status, session]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
 
   if (status === 'loading') {
     return <div className="p-8 text-center text-gray-500">Loading...</div>;

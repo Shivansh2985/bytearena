@@ -101,25 +101,44 @@ router.patch('/me', requireAuth, async (req: AuthRequest, res: Response) => {
 // We can add the /leaderboard route here as well
 router.get('/leaderboard', async (req: AuthRequest, res: Response) => {
   try {
-    const users = await prisma.user.findMany({
-      orderBy: [
-        { rating: 'desc' },
-        { name: 'asc' }
-      ],
-      take: 100,
-      select: {
-        id: true,
-        username: true,
-        name: true,
-        rating: true,
-        imageUrl: true,
-        _count: {
-          select: { submissions: { where: { status: 'ACCEPTED' } } }
-        }
-      }
-    });
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const skip = (page - 1) * limit;
 
-    return res.json(users);
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        orderBy: [
+          { rating: 'desc' },
+          { name: 'asc' }
+        ],
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          username: true,
+          name: true,
+          rating: true,
+          imageUrl: true,
+          _count: {
+            select: { submissions: { where: { status: 'ACCEPTED' } }, contests: true }
+          }
+        }
+      }),
+      prisma.user.count()
+    ]);
+
+    const formattedUsers = users.map((u, index) => ({
+      ...u,
+      contests: u._count.contests,
+      solved: u._count.submissions
+    }));
+
+    return res.json({
+      data: formattedUsers,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit)
+    });
   } catch (error) {
     console.error('Error fetching leaderboard:', error);
     return res.status(500).json({ error: 'Internal Server Error' });
