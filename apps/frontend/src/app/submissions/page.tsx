@@ -197,24 +197,21 @@ export default function SubmissionsPage() {
                   </div>
                   {expanded === s.id && (
                     <div className="px-5 pb-4 bg-muted/10 border-t border-border/50">
-                      <div className="flex items-center gap-3 pt-3">
-                        {s.contestId && s.problemId ? (
-                          <Link href={`/live-contest-workspace/${s.contestId}?problemId=${s.problemId}&viewSubmissionId=${s.id}`}>
-                            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-sky-300 text-xs font-medium hover:bg-primary/20 transition-colors">
-                              <Code2 size={12} />
-                              View Code
-                            </button>
-                          </Link>
-                        ) : (
-                          <button disabled className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/50 border border-border text-muted-foreground text-xs font-medium cursor-not-allowed">
-                            <Code2 size={12} />
-                            View Code
-                          </button>
-                        )}
+                      <div className="flex items-center gap-3 pt-3 mb-3">
+                        <button 
+                          onClick={() => navigator.clipboard.writeText(s.code || '')}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-sky-300 text-xs font-medium hover:bg-primary/20 transition-colors"
+                        >
+                          <Code2 size={12} />
+                          Copy Code
+                        </button>
                         <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-muted-foreground text-xs font-medium hover:text-foreground transition-colors">
                           Resubmit
                         </button>
                       </div>
+                      <pre className="p-4 rounded-lg bg-[#0A0A0A] border border-border/50 overflow-x-auto text-xs font-mono text-sky-100 max-h-96 custom-scrollbar">
+                        <code>{s.code || 'No code found.'}</code>
+                      </pre>
                     </div>
                   )}
                 </div>

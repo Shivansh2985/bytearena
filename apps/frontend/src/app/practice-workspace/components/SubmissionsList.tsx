@@ -15,7 +15,7 @@ export function SubmissionsList({ problemId }: { problemId: string }) {
         const res = await apiFetch(`/api/submissions`);
         const data = await res.json();
         // filter by problem
-        const filtered = data.submissions.filter((s: any) => s.problemId === problemId);
+        const filtered = data.submissions.filter((s: any) => s.questionId === problemId);
         setSubmissions(filtered);
       } catch (e) {
         console.error(e);

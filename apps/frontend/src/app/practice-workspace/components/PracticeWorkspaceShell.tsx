@@ -150,6 +150,45 @@ export default function PracticeWorkspaceShell({ questionId }: { questionId: str
     }
   };
 
+  const handleRunCustom = async (customInput: string) => {
+    if (!problem) return;
+    setIsRunning(true);
+    setShowOutput(true);
+    setRunResult({ status: 'running', actionType: 'run_custom', output: 'Queuing job...' });
+
+    try {
+      const response = await apiFetch('/api/judge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code,
+          language,
+          problemId: problem.id,
+          action: 'run_custom',
+          customInput
+        }),
+      });
+      const data = await response.json();
+
+      if (data.jobId) {
+        pollJob(data.jobId, (res) => {
+          setRunResult(res);
+          setIsRunning(false);
+        });
+      } else {
+        setRunResult({ status: 'runtime_error', output: data.error || 'Unknown error' });
+        setIsRunning(false);
+      }
+    } catch (error: any) {
+      setRunResult({
+        status: 'runtime_error',
+        output: error.message || 'Failed to execute custom input',
+        error: 'Execution failed due to network or server error.'
+      });
+      setIsRunning(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!problem || !user) {
       alert("You must be logged in to submit.");
@@ -196,6 +235,11 @@ export default function PracticeWorkspaceShell({ questionId }: { questionId: str
   };
 
   const triggerCelebration = () => {
+    try {
+      new Audio('https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3').play().catch(e => console.log('Audio play failed', e));
+    } catch (e) {
+      console.error('Failed to play sound', e);
+    }
     const duration = 3000;
     const end = Date.now() + duration;
 
@@ -335,6 +379,7 @@ export default function PracticeWorkspaceShell({ questionId }: { questionId: str
                       result={runResult}
                       onClose={() => setShowOutput(false)}
                       problem={problem}
+                      onRunCustom={handleRunCustom}
                     />
                   </Panel>
                 </>

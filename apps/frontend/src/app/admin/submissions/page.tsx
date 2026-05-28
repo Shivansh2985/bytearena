@@ -50,7 +50,7 @@ export default function AdminSubmissionsPage() {
   });
 
   return (
-    <AppLayout>
+    <AppLayout currentPath="/admin/submissions" role="admin">
       <div className="max-w-7xl mx-auto p-6 lg:p-8 w-full space-y-8 fade-in">
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
