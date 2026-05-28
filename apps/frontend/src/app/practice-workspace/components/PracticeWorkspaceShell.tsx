@@ -25,7 +25,8 @@ export default function PracticeWorkspaceShell({ questionId }: { questionId: str
     async function fetchProblem() {
       try {
         const res = await apiFetch(`/api/questions`);
-        const q = res.find((x: any) => x.id === questionId);
+        const data = await res.json();
+        const q = data.find((x: any) => x.id === questionId);
         if (q) {
           setProblem({
             id: q.id,
@@ -63,7 +64,8 @@ export default function PracticeWorkspaceShell({ questionId }: { questionId: str
     while (attempts < 60) { // 1 min timeout
       await new Promise(r => setTimeout(r, 1000));
       try {
-        const res = await apiFetch(`/api/judge/job/${jobId}`);
+        const response = await apiFetch(`/api/judge/job/${jobId}`);
+        const res = await response.json();
         if (res.jobStatus === 'completed') {
           onUpdate(res.result);
           return;
@@ -88,7 +90,7 @@ export default function PracticeWorkspaceShell({ questionId }: { questionId: str
     setRunResult({ status: 'running', output: 'Running sample test cases...' });
 
     try {
-      const data = await apiFetch('/api/judge', {
+        const response = await apiFetch('/api/judge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -98,6 +100,7 @@ export default function PracticeWorkspaceShell({ questionId }: { questionId: str
           action: 'run'
         }),
       });
+      const data = await response.json();
 
       if (data.jobId) {
         pollJob(data.jobId, (res) => {
@@ -128,7 +131,7 @@ export default function PracticeWorkspaceShell({ questionId }: { questionId: str
     setRunResult({ status: 'running', output: 'Running all test cases (including hidden)...' });
 
     try {
-      const data = await apiFetch('/api/judge', {
+      const response = await apiFetch('/api/judge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -138,6 +141,7 @@ export default function PracticeWorkspaceShell({ questionId }: { questionId: str
           action: 'submit'
         }),
       });
+      const data = await response.json();
 
       if (data.jobId) {
         pollJob(data.jobId, (res) => {

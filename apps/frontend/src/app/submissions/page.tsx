@@ -21,16 +21,7 @@ interface Submission {
   contestId?: string;
 }
 
-const submissions: Submission[] = [
-  { id: 's1', problem: 'Minimum Spanning Tree Weight', contest: 'ByteBlitz #18', language: 'C++', status: 'accepted', time: '124ms', memory: '18MB', submittedAt: '2 min ago', score: 300 },
-  { id: 's2', problem: 'Longest Palindromic Subsequence', contest: 'ByteBlitz #18', language: 'C++', status: 'wrong_answer', time: '89ms', memory: '12MB', submittedAt: '15 min ago' },
-  { id: 's3', problem: 'K-th Largest XOR Subarray', contest: 'ByteBlitz #18', language: 'Python', status: 'tle', time: '>2000ms', memory: '32MB', submittedAt: '32 min ago' },
-  { id: 's4', problem: 'Euler Tour on Tree', contest: 'AlgoArena #5', language: 'C++', status: 'accepted', time: '210ms', memory: '24MB', submittedAt: '1 day ago', score: 700 },
-  { id: 's5', problem: 'Convex Hull Trick DP', contest: 'AlgoArena #5', language: 'C++', status: 'runtime_error', time: '—', memory: '—', submittedAt: '1 day ago' },
-  { id: 's6', problem: 'Two Sum Variant', contest: 'Practice', language: 'Python', status: 'accepted', time: '45ms', memory: '8MB', submittedAt: '2 days ago', score: 100 },
-  { id: 's7', problem: 'Segment Tree Range Update', contest: 'CodeStorm #11', language: 'C++', status: 'accepted', time: '178ms', memory: '20MB', submittedAt: '3 days ago', score: 500 },
-  { id: 's8', problem: 'Dijkstra Shortest Path', contest: 'Practice', language: 'Java', status: 'compile_error', time: '—', memory: '—', submittedAt: '4 days ago' },
-];
+// Hardcoded array removed to avoid confusion; relying solely on fetched data.
 
 const statusConfig = {
   accepted: { label: 'Accepted', icon: CheckCircle, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
@@ -116,7 +107,7 @@ export default function SubmissionsPage() {
               <History size={22} className="text-sky-400" />
               Submission History
             </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">{acCount}/{submissions.length} accepted this session</p>
+            <p className="text-sm text-muted-foreground mt-0.5">{acCount}/{totalCount} accepted</p>
           </div>
         </div>
 

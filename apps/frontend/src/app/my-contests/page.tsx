@@ -214,7 +214,7 @@ export default function MyContestsPage() {
                   >
                     ✓ Registered
                   </button>
-                ) : c.status.toLowerCase() === 'completed' && c.resultsPublished ? (
+                ) : c.status.toLowerCase() === 'completed' ? (
                   <Link href={`/contests/${c.id}/results`} className="block w-full">
                     <button className="w-full py-2 rounded-lg text-xs font-semibold bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 transition-colors flex items-center justify-center gap-1.5">
                       View Results & Leaderboard
@@ -224,7 +224,7 @@ export default function MyContestsPage() {
                 ) : (
                   <Link href={`/live-contest-workspace/${c.id}`} className="block w-full">
                     <button className="w-full py-2 rounded-lg text-xs font-semibold border border-border text-muted-foreground hover:text-foreground hover:border-sky-500/30 transition-colors flex items-center justify-center gap-1.5">
-                      View Questions & Submissions
+                      View Contest
                       <ArrowRight size={12} />
                     </button>
                   </Link>
