@@ -159,12 +159,12 @@ export default function ProblemPanel({
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">Constraints</h3>
               <ul className="space-y-1">
-                {problem.constraints.map((c) => (
+                {Array.isArray(problem.constraints) ? problem.constraints.map((c: string) => (
                   <li key={`constraint-${problem.id}-${c}`} className="flex items-start gap-2 text-sm text-foreground/80">
                     <span className="text-primary mt-1 flex-shrink-0">•</span>
                     <code className="font-mono text-xs bg-muted/50 px-1.5 py-0.5 rounded text-cyan-300">{c}</code>
                   </li>
-                ))}
+                )) : <li className="flex items-start gap-2 text-sm text-foreground/80">{problem.constraints}</li>}
               </ul>
             </div>
 

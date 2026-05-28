@@ -159,7 +159,7 @@ export default function AdminDashboardPage() {
               Recent Alerts
             </h2>
             <div className="space-y-3">
-              {recentAlerts.length > 0 ? recentAlerts.map((alert) => (
+              {recentAlerts.length > 0 ? recentAlerts.map((alert: any) => (
                 <div key={alert.id} className={`flex items-start gap-3 p-3 rounded-xl border ${
                   alert.type === 'danger' ? 'bg-red-500/5 border-red-500/20' :
                   alert.type === 'warning' ? 'bg-amber-500/5 border-amber-500/20' :

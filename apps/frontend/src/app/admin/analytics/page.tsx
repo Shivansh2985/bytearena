@@ -196,14 +196,14 @@ export default function AdminAnalyticsPage() {
                   <ResponsiveContainer width={160} height={160}>
                     <PieChart>
                       <Pie data={tierDistribution} cx="50%" cy="50%" innerRadius={45} outerRadius={70} dataKey="value" paddingAngle={2}>
-                        {tierDistribution.map((entry, index) => (
+                        {tierDistribution.map((entry: any, index: number) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="space-y-2 flex-1">
-                    {tierDistribution.map((t) => (
+                    {tierDistribution.map((t: any) => (
                       <div key={t.name} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-full" style={{ background: t.color }} />

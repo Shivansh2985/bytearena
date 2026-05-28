@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '@bytearena/database';
 import { requireAuth, AuthRequest, requireAdmin, optionalAuth } from '../middleware/auth';
-import { redisClient } from '../redis';
+import { getRedisClient } from '../lib/redis';
 import { sendNotification } from '../services/notifications';
 
 const router = Router();
@@ -213,6 +213,7 @@ router.post('/', requireAdmin, async (req: AuthRequest, res: Response) => {
     });
 
     try {
+      const redisClient = getRedisClient();
       await redisClient.publish('notifications', JSON.stringify({
         type: 'global',
         title: `New Contest: ${contest.title}`,

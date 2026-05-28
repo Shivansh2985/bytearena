@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiFetch } from '@/utils/apiFetch';
+import { apiFetch } from '@/lib/api';
 import { Clock, CheckCircle2, XCircle, Copy, AlertCircle } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/cjs/styles/prism';

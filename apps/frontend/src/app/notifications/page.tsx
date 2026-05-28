@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { apiFetch } from '@/utils/apiFetch';
+import { apiFetch } from '@/lib/api';
 import { Bell, CheckCircle2, Info, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useRouter } from 'next/navigation';
