@@ -5,21 +5,50 @@ import PracticeProblemPanel from './PracticeProblemPanel';
 import CodeEditorPanel from '../../live-contest-workspace/components/CodeEditorPanel';
 import OutputPanel from '../../live-contest-workspace/components/OutputPanel';
 import { Problem, RunResult, Language } from '../../live-contest-workspace/components/WorkspaceShell';
-import { ChevronLeft, Play, Send } from 'lucide-react';
+import { ChevronLeft, Play, Send, History, FileText, CheckCircle2 } from 'lucide-react';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import confetti from 'canvas-confetti';
+import { Stopwatch } from './Stopwatch';
+import { SubmissionsList } from './SubmissionsList';
+
+const SNIPPETS: Record<Language, string> = {
+  cpp: '#include <iostream>\nusing namespace std;\n\nint main() {\n    // Write your code here\n    return 0;\n}\n',
+  python: 'def solve():\n    # Write your code here\n    pass\n\nif __name__ == "__main__":\n    solve()\n',
+  java: 'import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        // Write your code here\n    }\n}\n',
+  javascript: 'function solve() {\n    // Write your code here\n}\n\nsolve();\n'
+};
 import Link from 'next/link';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 export default function PracticeWorkspaceShell({ questionId }: { questionId: string }) {
   const { data: user } = useCurrentUser();
   const [problem, setProblem] = useState<Problem | null>(null);
-  const [code, setCode] = useState('// Write your code here\n');
   const [language, setLanguage] = useState<Language>('cpp');
+  const [code, setCode] = useState(SNIPPETS['cpp']);
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [showOutput, setShowOutput] = useState(false);
   const [runResult, setRunResult] = useState<RunResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [loading, setLoading] = useState(true);
+  
+  const [activeTab, setActiveTab] = useState<'problem' | 'submissions'>('problem');
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [timeElapsed, setTimeElapsed] = useState(0);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (timerRunning) {
+      interval = setInterval(() => {
+        setTimeElapsed(prev => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [timerRunning]);
+
+  useEffect(() => {
+    setCode(SNIPPETS[language]);
+  }, [language]);
 
   useEffect(() => {
     async function fetchProblem() {
@@ -147,6 +176,10 @@ export default function PracticeWorkspaceShell({ questionId }: { questionId: str
         pollJob(data.jobId, (res) => {
           setRunResult(res);
           setIsSubmitting(false);
+          if (res.status === 'accepted') {
+            setTimerRunning(false);
+            triggerCelebration();
+          }
         });
       } else {
         setRunResult({ status: 'runtime_error', output: data.error || 'Unknown error' });
@@ -160,6 +193,33 @@ export default function PracticeWorkspaceShell({ questionId }: { questionId: str
       });
       setIsSubmitting(false);
     }
+  };
+
+  const triggerCelebration = () => {
+    const duration = 3000;
+    const end = Date.now() + duration;
+
+    const frame = () => {
+      confetti({
+        particleCount: 5,
+        angle: 60,
+        spread: 55,
+        origin: { x: 0 },
+        colors: ['#0EA5E9', '#38BDF8', '#7DD3FC']
+      });
+      confetti({
+        particleCount: 5,
+        angle: 120,
+        spread: 55,
+        origin: { x: 1 },
+        colors: ['#0EA5E9', '#38BDF8', '#7DD3FC']
+      });
+
+      if (Date.now() < end) {
+        requestAnimationFrame(frame);
+      }
+    };
+    frame();
   };
 
   if (loading) {
@@ -183,6 +243,12 @@ export default function PracticeWorkspaceShell({ questionId }: { questionId: str
         </div>
         
         <div className="flex items-center gap-3">
+          <Stopwatch 
+            isRunning={timerRunning} 
+            onStart={() => setTimerRunning(true)} 
+            onStop={() => setTimerRunning(false)} 
+            time={timeElapsed} 
+          />
           <select 
             value={language}
             onChange={(e) => setLanguage(e.target.value as Language)}
@@ -213,36 +279,69 @@ export default function PracticeWorkspaceShell({ questionId }: { questionId: str
       </div>
 
       {/* Main Workspace */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel: Problem Statement */}
-        <div className="w-[45%] border-r border-border flex flex-col h-full bg-[#060608]">
-          <PracticeProblemPanel problem={problem} />
-        </div>
-
-        {/* Right Panel: Editor & Output */}
-        <div className="flex-1 flex flex-col min-w-0 bg-[#060608]">
-          <div className={`flex-1 min-h-0 relative ${showOutput ? 'h-[60%]' : 'h-full'}`}>
-            <CodeEditorPanel
-              code={code}
-              onChange={setCode}
-              language={language}
-              problem={problem}
-              cameraBlocked={false}
-              onToggleCamera={() => {}}
-            />
-          </div>
-
-          {/* Output Panel */}
-          {showOutput && runResult && (
-            <div className="h-[40%] border-t border-border shrink-0 bg-[#0a0a0c]">
-              <OutputPanel
-                result={runResult}
-                onClose={() => setShowOutput(false)}
-                problem={problem}
-              />
+      <div className="flex-1 overflow-hidden">
+        <PanelGroup direction="horizontal" className="h-full">
+          {/* Left Panel: Problem Statement / Submissions */}
+          <Panel defaultSize={45} minSize={30} className="flex flex-col h-full bg-[#060608]">
+            <div className="flex border-b border-border bg-[#0a0a0c] px-4 shrink-0">
+              <button
+                onClick={() => setActiveTab('problem')}
+                className={`py-3 px-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                  activeTab === 'problem' ? 'border-sky-500 text-sky-400' : 'border-transparent text-muted-foreground hover:text-white'
+                }`}
+              >
+                <FileText size={14} /> Description
+              </button>
+              <button
+                onClick={() => setActiveTab('submissions')}
+                className={`py-3 px-2 ml-4 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                  activeTab === 'submissions' ? 'border-sky-500 text-sky-400' : 'border-transparent text-muted-foreground hover:text-white'
+                }`}
+              >
+                <History size={14} /> Submissions
+              </button>
             </div>
-          )}
-        </div>
+            
+            <div className="flex-1 overflow-y-auto">
+              {activeTab === 'problem' ? (
+                <PracticeProblemPanel problem={problem} />
+              ) : (
+                <SubmissionsList problemId={problem.id} />
+              )}
+            </div>
+          </Panel>
+
+          <PanelResizeHandle className="w-1.5 bg-border hover:bg-sky-500/50 transition-colors cursor-col-resize active:bg-sky-500" />
+
+          {/* Right Panel: Editor & Output */}
+          <Panel minSize={30} className="flex flex-col h-full bg-[#060608]">
+            <PanelGroup direction="vertical">
+              <Panel defaultSize={showOutput ? 60 : 100} minSize={20} className="relative">
+                <CodeEditorPanel
+                  code={code}
+                  onChange={setCode}
+                  language={language}
+                  problem={problem}
+                  cameraBlocked={false}
+                  onToggleCamera={() => {}}
+                />
+              </Panel>
+
+              {showOutput && runResult && (
+                <>
+                  <PanelResizeHandle className="h-1.5 bg-border hover:bg-sky-500/50 transition-colors cursor-row-resize active:bg-sky-500" />
+                  <Panel minSize={20} className="bg-[#0a0a0c]">
+                    <OutputPanel
+                      result={runResult}
+                      onClose={() => setShowOutput(false)}
+                      problem={problem}
+                    />
+                  </Panel>
+                </>
+              )}
+            </PanelGroup>
+          </Panel>
+        </PanelGroup>
       </div>
     </div>
   );

@@ -178,7 +178,7 @@ export default function Topbar({ onMenuClick, role = 'student', user }: TopbarPr
               </div>
               <div className="px-4 py-2.5 text-center flex flex-col gap-2">
                 <button onClick={requestPushPermission} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Enable Browser Push Alerts</button>
-                <button className="text-xs text-primary hover:text-sky-300 transition-colors">View all notifications</button>
+                <Link href="/notifications" className="text-xs text-primary hover:text-sky-300 transition-colors">View all notifications</Link>
               </div>
             </div>
           )}

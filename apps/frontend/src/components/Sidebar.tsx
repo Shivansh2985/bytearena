@@ -74,7 +74,7 @@ const userNavGroups: NavGroup[] = [
     label: 'Account',
     items: [
       { icon: User, label: 'Profile', href: '/profile', badge: null },
-      { icon: Bell, label: 'Notifications', href: '/user-dashboard', badge: null },
+      { icon: Bell, label: 'Notifications', href: '/notifications', badge: null },
       { icon: Settings, label: 'Settings', href: '/settings', badge: null },
     ],
   },

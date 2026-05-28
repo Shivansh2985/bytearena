@@ -99,14 +99,19 @@ router.get('/', requireAdmin, async (req: Request, res: Response) => {
     
     if (action === 'stats') {
       const now = new Date();
-      const [usersCount, submissionsCount, liveContestsCount, userStats] = await Promise.all([
+      const [usersCount, submissionsCount, liveContestsCount, userStats, acceptedSubmissionsCount, avgRuntimeAggr] = await Promise.all([
         prisma.user.count(),
         prisma.submission.count(),
         prisma.contest.count({
           where: { startTime: { lte: now }, endTime: { gt: now } }
         }),
-        prisma.user.aggregate({ _avg: { rating: true } })
+        prisma.user.aggregate({ _avg: { rating: true } }),
+        prisma.submission.count({ where: { status: 'ACCEPTED' } }),
+        prisma.submission.aggregate({ _avg: { runtime: true }, where: { status: 'ACCEPTED' } })
       ]);
+      
+      const acceptanceRate = submissionsCount > 0 ? ((acceptedSubmissionsCount / submissionsCount) * 100).toFixed(1) + '%' : '0%';
+      const avgRuntime = avgRuntimeAggr._avg.runtime ? Math.round(avgRuntimeAggr._avg.runtime) + ' ms' : '0 ms';
 
       // Calculate tier distribution
       // Since Prisma doesn't support grouping by arbitrary ranges, we can run multiple counts,
@@ -197,7 +202,9 @@ router.get('/', requireAdmin, async (req: Request, res: Response) => {
         tierDistribution: tierDistributionRaw.length > 0 ? tierDistributionRaw : null,
         contestParticipation,
         dailySubmissions: dailySubmissions.length > 0 ? dailySubmissions : null,
-        recentAlerts
+        recentAlerts,
+        acceptanceRate,
+        avgRuntime
       });
     }
 
@@ -292,7 +299,7 @@ router.post('/contests/:id/publish-results', requireAdmin, async (req: Request, 
     });
 
     if (!contest) return res.status(404).json({ error: 'Contest not found' });
-    if (contest.status !== 'COMPLETED') return res.status(400).json({ error: 'Contest must be completed to publish results' });
+    if (new Date() < new Date(contest.endTime)) return res.status(400).json({ error: 'Contest must be over to publish results' });
     if (contest.resultsPublished) return res.status(400).json({ error: 'Results already published' });
 
     // 2. Sort participants by score descending to determine ranks
@@ -346,10 +353,13 @@ router.post('/contests/:id/publish-results', requireAdmin, async (req: Request, 
         );
       }
 
-      // Mark contest as published
+      // Mark contest as published and COMPLETED
       await tx.contest.update({
-        where: { id: contest.id },
-        data: { resultsPublished: true }
+        where: { id },
+        data: { 
+          resultsPublished: true,
+          status: 'COMPLETED'
+        }
       });
     });
 

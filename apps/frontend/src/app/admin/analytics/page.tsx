@@ -106,8 +106,8 @@ export default function AdminAnalyticsPage() {
     { label: 'Live Contests', value: contestsCount.toString(), icon: Swords, change: 'Currently active contests', color: 'amber' },
     { label: 'Total Submissions', value: submissionsCount.toLocaleString(), icon: Activity, change: 'Across all tasks', color: 'emerald' },
     { label: 'Avg Rating', value: avgRating.toString(), icon: TrendingUp, change: 'Platform average', color: 'cyan' },
-    { label: 'Avg Solve Time', value: '22 min', icon: Clock, change: 'System baseline', color: 'orange' },
-    { label: 'Acceptance Rate', value: '61.2%', icon: BarChart2, change: 'Platform-wide', color: 'violet' },
+    { label: 'Avg Execution Time', value: stats?.avgRuntime ?? '0 ms', icon: Clock, change: 'System baseline', color: 'orange' },
+    { label: 'Acceptance Rate', value: stats?.acceptanceRate ?? '0%', icon: BarChart2, change: 'Platform-wide', color: 'violet' },
   ];
 
   const dailySubmissions = stats?.dailySubmissions ?? [

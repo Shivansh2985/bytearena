@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '@bytearena/database';
 import { requireAuth, AuthRequest, requireAdmin, optionalAuth } from '../middleware/auth';
+import { redisClient } from '../redis';
 import { sendNotification } from '../services/notifications';
 
 const router = Router();
@@ -210,6 +211,16 @@ router.post('/', requireAdmin, async (req: AuthRequest, res: Response) => {
         }
       }
     });
+
+    try {
+      await redisClient.publish('notifications', JSON.stringify({
+        type: 'global',
+        title: `New Contest: ${contest.title}`,
+        message: 'A new contest has been scheduled. Check it out and register!'
+      }));
+    } catch (e) {
+      console.error('Failed to publish contest notification', e);
+    }
 
     return res.status(201).json(contest);
   } catch (error) {
